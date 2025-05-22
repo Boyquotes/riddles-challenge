@@ -20,6 +20,7 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect 
   private activeRiddleId: string = null;
   private activePlayers: Map<string, Socket> = new Map();
   private playerAnswers: Map<string, Set<string>> = new Map();
+  private globalAttemptedAnswers: Map<string, Set<string>> = new Map();
 
   constructor(private readonly riddlesService: RiddlesService) {}
   
@@ -39,6 +40,7 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect 
       const riddle = await this.riddlesService.getRandomRiddle();
       this.activeRiddleId = riddle.id;
       this.playerAnswers.set(this.activeRiddleId, new Set());
+      this.globalAttemptedAnswers.set(this.activeRiddleId, new Set());
     }
     
     // Send the current riddle to the new player
@@ -62,10 +64,33 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect 
   async handleSubmitAnswer(client: Socket, payload: { answer: string }) {
     const playerId = client.id;
     const { answer } = payload;
+    const normalizedAnswer = answer.toLowerCase().trim();
+    
+    // Get the set of globally attempted answers for the current riddle
+    const globalAnswers = this.globalAttemptedAnswers.get(this.activeRiddleId) || new Set();
+    
+    // Check if any player has already submitted this answer
+    if (globalAnswers.has(normalizedAnswer)) {
+      // Send response to the client who submitted the answer
+      client.emit('answerResponse', {
+        correct: false,
+        message: 'This answer was already tried',
+      });
+      
+      // Broadcast to all clients that this answer was already tried
+      this.server.emit('duplicateAnswer', {
+        playerId,
+        playerNumber: this.getPlayerNumber(playerId),
+        answer: normalizedAnswer,
+        riddleId: this.activeRiddleId
+      });
+      
+      return;
+    }
     
     // Check if this player has already submitted this answer
     const answers = this.playerAnswers.get(this.activeRiddleId);
-    const playerAnswerKey = `${playerId}:${answer.toLowerCase()}`;
+    const playerAnswerKey = `${playerId}:${normalizedAnswer}`;
     
     if (answers.has(playerAnswerKey)) {
       client.emit('answerResponse', {
@@ -75,8 +100,10 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect 
       return;
     }
     
-    // Add this answer to the set
+    // Add this answer to both the player-specific set and the global set
     answers.add(playerAnswerKey);
+    globalAnswers.add(normalizedAnswer);
+    this.globalAttemptedAnswers.set(this.activeRiddleId, globalAnswers);
     
     // Check if the answer is correct
     const isCorrect = await this.riddlesService.checkAnswer(this.activeRiddleId, answer);
@@ -86,6 +113,7 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect 
       const newRiddle = await this.riddlesService.getRandomRiddle();
       this.activeRiddleId = newRiddle.id;
       this.playerAnswers.set(this.activeRiddleId, new Set());
+      this.globalAttemptedAnswers.set(this.activeRiddleId, new Set());
       
       // Broadcast the new riddle to all clients
       this.server.emit('newRiddle', {

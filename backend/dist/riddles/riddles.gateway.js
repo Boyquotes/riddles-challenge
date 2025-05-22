@@ -19,6 +19,7 @@ let RiddlesGateway = class RiddlesGateway {
         this.activeRiddleId = null;
         this.activePlayers = new Map();
         this.playerAnswers = new Map();
+        this.globalAttemptedAnswers = new Map();
     }
     getPlayerNumber(playerId) {
         const players = Array.from(this.activePlayers.keys());
@@ -31,6 +32,7 @@ let RiddlesGateway = class RiddlesGateway {
             const riddle = await this.riddlesService.getRandomRiddle();
             this.activeRiddleId = riddle.id;
             this.playerAnswers.set(this.activeRiddleId, new Set());
+            this.globalAttemptedAnswers.set(this.activeRiddleId, new Set());
         }
         const currentRiddle = await this.riddlesService.getRiddle(this.activeRiddleId);
         client.emit('currentRiddle', {
@@ -47,8 +49,23 @@ let RiddlesGateway = class RiddlesGateway {
     async handleSubmitAnswer(client, payload) {
         const playerId = client.id;
         const { answer } = payload;
+        const normalizedAnswer = answer.toLowerCase().trim();
+        const globalAnswers = this.globalAttemptedAnswers.get(this.activeRiddleId) || new Set();
+        if (globalAnswers.has(normalizedAnswer)) {
+            client.emit('answerResponse', {
+                correct: false,
+                message: 'This answer was already tried',
+            });
+            this.server.emit('duplicateAnswer', {
+                playerId,
+                playerNumber: this.getPlayerNumber(playerId),
+                answer: normalizedAnswer,
+                riddleId: this.activeRiddleId
+            });
+            return;
+        }
         const answers = this.playerAnswers.get(this.activeRiddleId);
-        const playerAnswerKey = `${playerId}:${answer.toLowerCase()}`;
+        const playerAnswerKey = `${playerId}:${normalizedAnswer}`;
         if (answers.has(playerAnswerKey)) {
             client.emit('answerResponse', {
                 correct: false,
@@ -57,11 +74,14 @@ let RiddlesGateway = class RiddlesGateway {
             return;
         }
         answers.add(playerAnswerKey);
+        globalAnswers.add(normalizedAnswer);
+        this.globalAttemptedAnswers.set(this.activeRiddleId, globalAnswers);
         const isCorrect = await this.riddlesService.checkAnswer(this.activeRiddleId, answer);
         if (isCorrect) {
             const newRiddle = await this.riddlesService.getRandomRiddle();
             this.activeRiddleId = newRiddle.id;
             this.playerAnswers.set(this.activeRiddleId, new Set());
+            this.globalAttemptedAnswers.set(this.activeRiddleId, new Set());
             this.server.emit('newRiddle', {
                 id: newRiddle.id,
                 question: newRiddle.question,
