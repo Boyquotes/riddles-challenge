@@ -1,0 +1,29 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Mutation {
+  checkAnswer(answer: String!, id: String!, playerId: String!): Boolean!
+}
+
+type Query {
+  randomRiddle: Riddle!
+  riddle(id: String!): Riddle!
+  riddles: [Riddle!]!
+}
+
+type Riddle {
+  answer: String
+  id: ID!
+  question: String!
+  solved: Boolean!
+}
+
+type RiddleSolvedResponse {
+  newRiddle: Riddle!
+  solvedBy: String!
+}
+
+type Subscription {
+  riddleSolved: RiddleSolvedResponse!
+}
