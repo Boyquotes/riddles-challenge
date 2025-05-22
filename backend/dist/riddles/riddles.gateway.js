@@ -20,6 +20,10 @@ let RiddlesGateway = class RiddlesGateway {
         this.activePlayers = new Map();
         this.playerAnswers = new Map();
     }
+    getPlayerNumber(playerId) {
+        const players = Array.from(this.activePlayers.keys());
+        return players.indexOf(playerId) + 1;
+    }
     async handleConnection(client) {
         console.log(`Client connected: ${client.id}`);
         this.activePlayers.set(client.id, client);
@@ -72,6 +76,12 @@ let RiddlesGateway = class RiddlesGateway {
             client.emit('answerResponse', {
                 correct: false,
                 message: 'Incorrect answer, try again!',
+            });
+            this.server.emit('wrongAnswer', {
+                playerId,
+                playerNumber: this.getPlayerNumber(playerId),
+                answer,
+                riddleId: this.activeRiddleId
             });
         }
     }

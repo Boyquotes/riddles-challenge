@@ -22,6 +22,13 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect 
   private playerAnswers: Map<string, Set<string>> = new Map();
 
   constructor(private readonly riddlesService: RiddlesService) {}
+  
+  // Helper method to get the player number based on connection order
+  private getPlayerNumber(playerId: string): number {
+    // Convert the Map to an array and find the index of the player
+    const players = Array.from(this.activePlayers.keys());
+    return players.indexOf(playerId) + 1;
+  }
 
   async handleConnection(client: Socket) {
     console.log(`Client connected: ${client.id}`);
@@ -92,9 +99,18 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect 
         message: 'Correct! You solved the riddle!',
       });
     } else {
+      // Send response to the client who submitted the answer
       client.emit('answerResponse', {
         correct: false,
         message: 'Incorrect answer, try again!',
+      });
+      
+      // Broadcast the wrong answer to all clients
+      this.server.emit('wrongAnswer', {
+        playerId,
+        playerNumber: this.getPlayerNumber(playerId),
+        answer,
+        riddleId: this.activeRiddleId
       });
     }
   }

@@ -8,6 +8,7 @@ export declare class RiddlesGateway implements OnGatewayConnection, OnGatewayDis
     private activePlayers;
     private playerAnswers;
     constructor(riddlesService: RiddlesService);
+    private getPlayerNumber;
     handleConnection(client: Socket): Promise<void>;
     handleDisconnect(client: Socket): void;
     handleSubmitAnswer(client: Socket, payload: {
