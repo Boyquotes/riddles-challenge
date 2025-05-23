@@ -12,8 +12,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RedisService = void 0;
 const common_1 = require("@nestjs/common");
 const ioredis_1 = require("ioredis");
+const ethereum_service_1 = require("./ethereum.service");
 let RedisService = class RedisService {
-    constructor() {
+    constructor(ethereumService) {
+        this.ethereumService = ethereumService;
         this.redisClient = new ioredis_1.Redis({
             host: 'localhost',
             port: 6379,
@@ -45,23 +47,30 @@ let RedisService = class RedisService {
     }
     async getRandomRiddleId() {
         const ids = await this.getAllRiddleIds();
-        const randomIndex = Math.floor(Math.random() * ids.length);
-        return ids[randomIndex];
+        const onchainRiddle = await this.getRiddle('onchain');
+        if (onchainRiddle && onchainRiddle.solved === '0') {
+            if (Math.random() < 0.25) {
+                return 'onchain';
+            }
+        }
+        const filteredIds = ids.filter(id => id !== 'onchain');
+        const randomIndex = Math.floor(Math.random() * filteredIds.length);
+        return filteredIds[randomIndex];
     }
     async seedRiddles() {
         const count = await this.redisClient.keys('riddle:*');
         if (count.length > 0) {
             console.log(`${count.length} riddles already exist in Redis`);
+            await this.fetchAndStoreOnchainRiddle();
             return;
         }
         const riddles = [
-            { question: 'What has keys but no locks, space but no room, and you can enter but not go in?', answer: 'keyboard' },
             { question: 'I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?', answer: 'echo' },
             { question: 'What gets wetter as it dries?', answer: 'towel' },
             { question: 'The more you take, the more you leave behind. What am I?', answer: 'footsteps' },
             { question: 'What has a head, a tail, but no body?', answer: 'coin' },
         ];
-        const totalRiddles = 100;
+        const totalRiddles = 4;
         for (let i = 0; i < totalRiddles; i++) {
             const riddleIndex = i % riddles.length;
             const riddle = riddles[riddleIndex];
@@ -69,11 +78,27 @@ let RedisService = class RedisService {
             await this.redisClient.hset(`riddle:${i + 1}`, 'id', `${i + 1}`, 'question', riddle.question + suffix, 'answer', riddle.answer, 'solved', '0');
         }
         console.log(`Seeded ${totalRiddles} riddles in Redis`);
+        await this.fetchAndStoreOnchainRiddle();
+    }
+    async fetchAndStoreOnchainRiddle() {
+        try {
+            const onchainRiddleData = await this.ethereumService.getRiddle();
+            if (onchainRiddleData.question && onchainRiddleData.isActive) {
+                await this.redisClient.hset('riddle:onchain', 'id', 'onchain', 'question', onchainRiddleData.question, 'answer', '', 'solved', onchainRiddleData.winner !== '0x0000000000000000000000000000000000000000' ? '1' : '0', 'onchain', '1', 'isActive', onchainRiddleData.isActive ? '1' : '0');
+                console.log('Onchain riddle fetched and stored in Redis');
+            }
+            else {
+                console.log('No active onchain riddle available');
+            }
+        }
+        catch (error) {
+            console.error('Failed to fetch onchain riddle:', error);
+        }
     }
 };
 exports.RedisService = RedisService;
 exports.RedisService = RedisService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
+    __metadata("design:paramtypes", [ethereum_service_1.EthereumService])
 ], RedisService);
 //# sourceMappingURL=redis.service.js.map
