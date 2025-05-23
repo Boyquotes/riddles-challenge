@@ -1,4 +1,4 @@
-export declare const RIDDLE_CONTRACT_ADDRESS = "0xA6FDC30159443F08a76dcAc0469A7d6B0dE878d2";
+export declare const RIDDLE_CONTRACT_ADDRESS: string;
 export declare const RIDDLE_CONTRACT_ABI: ({
     inputs: any[];
     stateMutability: string;
@@ -42,3 +42,12 @@ export declare const RIDDLE_CONTRACT_ABI: ({
     anonymous?: undefined;
 })[];
 export declare const SEPOLIA_RPC_URL: string;
+export declare const HARDHAT_RPC_URL: string;
+export declare const SEPOLIA_CHAIN_ID = 11155111;
+export declare const HARDHAT_CHAIN_ID = 31337;
+export declare const NETWORK_MODE: string;
+export declare const ACTIVE_RPC_URL: string;
+export declare const ACTIVE_CHAIN_ID: number;
+export declare const ACTIVE_NETWORK_NAME: string;
+export declare const ACTIVE_CURRENCY_NAME: string;
+export declare const ACTIVE_BLOCK_EXPLORER: string;

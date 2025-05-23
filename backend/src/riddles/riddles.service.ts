@@ -1,10 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { RedisService } from '../common/redis.service';
 import { Riddle } from './models/riddle.model';
+import { EthereumService } from '../common/ethereum.service';
+import { ethers } from 'ethers';
+import { MetaMaskTransaction } from './models/metamask-transaction.model';
 
 @Injectable()
 export class RiddlesService {
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly ethereumService: EthereumService
+  ) {}
 
   async getRiddle(id: string): Promise<Riddle> {
     const riddle = await this.redisService.getRiddle(id);
@@ -28,6 +34,17 @@ export class RiddlesService {
 
   async getRandomRiddle(): Promise<Riddle> {
     const id = await this.redisService.getRandomRiddleId();
+    
+    // Check if game is over (all riddles solved)
+    if (id === 'game_over') {
+      return {
+        id: 'game_over',
+        question: 'Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.',
+        solved: true,
+        answer: 'Merci d\'avoir joué !'
+      };
+    }
+    
     return this.getRiddle(id);
   }
 
@@ -37,11 +54,58 @@ export class RiddlesService {
       return false;
     }
 
+    // Check if this is an onchain riddle
+    if (id === 'onchain' || riddle.onchain === '1') {
+      return this.checkOnchainAnswer(answer, riddle);
+    }
+
+    // Regular riddle check
     const isCorrect = riddle.answer.toLowerCase() === answer.toLowerCase();
     if (isCorrect) {
       await this.redisService.getClient().hset(`riddle:${id}`, 'solved', '1');
     }
     
     return isCorrect;
+  }
+
+  async checkOnchainAnswer(answer: string, riddle: any): Promise<boolean> {
+    try {
+      // Calculate the hash of the answer
+      const answerHash = ethers.keccak256(ethers.toUtf8Bytes(answer));
+      
+      // Get the contract instance from the EthereumService
+      const contract = this.ethereumService.getContract();
+      
+      // Check if the riddle is still active
+      const isActive = await contract.isActive();
+      if (!isActive) {
+        console.log('Riddle is no longer active on the blockchain');
+        return false;
+      }
+      
+      // We can't directly check if the answer is correct without revealing the hash
+      // So we'll submit the answer to the contract and check the result
+      // This is a read-only call that doesn't modify the blockchain state
+      const isCorrect = await this.ethereumService.checkAnswer(answer);
+      
+      if (isCorrect) {
+        // Update the riddle status in Redis
+        await this.redisService.getClient().hset('riddle:onchain', 'solved', '1');
+        console.log('Onchain riddle solved correctly!');
+      }
+      
+      return isCorrect;
+    } catch (error) {
+      console.error('Error checking onchain answer:', error);
+      return false;
+    }
+  }
+  
+  /**
+   * Prepare transaction data for MetaMask to submit an answer to the contract
+   * This returns the data needed for the frontend to create a transaction with MetaMask
+   */
+  prepareMetaMaskTransaction(answer: string): MetaMaskTransaction {
+    return this.ethereumService.prepareMetaMaskTransaction(answer);
   }
 }

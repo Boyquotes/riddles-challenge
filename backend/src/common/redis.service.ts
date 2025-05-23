@@ -44,19 +44,37 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async getRandomRiddleId(): Promise<string> {
     const ids = await this.getAllRiddleIds();
     
+    // Get all riddles that are not solved
+    const unsolvedRiddles = [];
+    
     // Check if we have an onchain riddle and if it's not solved
     const onchainRiddle = await this.getRiddle('onchain');
     if (onchainRiddle && onchainRiddle.solved === '0') {
-      // Return the onchain riddle with higher probability (25%)
-      if (Math.random() < 0.25) {
-        return 'onchain';
+      unsolvedRiddles.push('onchain');
+    }
+    
+    // Get all other unsolved riddles
+    const regularIds = ids.filter(id => id !== 'onchain');
+    for (const id of regularIds) {
+      const riddle = await this.getRiddle(id);
+      if (riddle && riddle.solved === '0') {
+        unsolvedRiddles.push(id);
       }
     }
     
-    // Otherwise return a random regular riddle
-    const filteredIds = ids.filter(id => id !== 'onchain');
-    const randomIndex = Math.floor(Math.random() * filteredIds.length);
-    return filteredIds[randomIndex];
+    // If there are no unsolved riddles, return a special ID
+    if (unsolvedRiddles.length === 0) {
+      return 'game_over';
+    }
+    
+    // Prioritize onchain riddle with higher probability (25%)
+    if (unsolvedRiddles.includes('onchain') && Math.random() < 0.25) {
+      return 'onchain';
+    }
+    
+    // Otherwise return a random unsolved riddle
+    const randomIndex = Math.floor(Math.random() * unsolvedRiddles.length);
+    return unsolvedRiddles[randomIndex];
   }
 
   async seedRiddles() {
@@ -70,14 +88,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     // { question: 'What has keys but no locks, space but no room, and you can enter but not go in?', answer: 'keyboard' },
     const riddles = [
       { question: 'I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?', answer: 'echo' },
-      { question: 'What gets wetter as it dries?', answer: 'towel' },
-      { question: 'The more you take, the more you leave behind. What am I?', answer: 'footsteps' },
-      { question: 'What has a head, a tail, but no body?', answer: 'coin' },
       // Adding more riddles to reach 100 would be done here
     ];
 
     // For demonstration, we'll add these 5 riddles and then duplicate them to reach 100
-    const totalRiddles = 4;
+    const totalRiddles = 1;
     
     for (let i = 0; i < totalRiddles; i++) {
       const riddleIndex = i % riddles.length;
@@ -103,26 +118,83 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async fetchAndStoreOnchainRiddle() {
     try {
-      // Fetch the riddle from the Ethereum blockchain
-      const onchainRiddleData = await this.ethereumService.getRiddle();
+      // Vérifier le mode réseau
+      const networkMode = process.env.NETWORK_MODE || 'testnet';
       
-      if (onchainRiddleData.question && onchainRiddleData.isActive) {
-        // Store the onchain riddle in Redis
-        await this.redisClient.hset(
-          'riddle:onchain',
-          'id', 'onchain',
-          'question', onchainRiddleData.question,
-          'answer', '', // We don't know the answer, it's stored as a hash on the contract
-          'solved', onchainRiddleData.winner !== '0x0000000000000000000000000000000000000000' ? '1' : '0',
-          'onchain', '1', // Flag to identify this as an onchain riddle
-          'isActive', onchainRiddleData.isActive ? '1' : '0'
-        );
-        console.log('Onchain riddle fetched and stored in Redis');
+      if (networkMode === 'local') {
+        console.log('Mode local détecté, vérification de la disponibilité du contrat sur Hardhat...');
+        
+        try {
+          // Essayer de récupérer l'énigme depuis la blockchain locale
+          const onchainRiddleData = await this.ethereumService.getRiddle();
+          
+          if (onchainRiddleData.question && onchainRiddleData.isActive) {
+            // Stocker l'énigme onchain dans Redis
+            await this.redisClient.hset(
+              'riddle:onchain',
+              'id', 'onchain',
+              'question', onchainRiddleData.question,
+              'answer', '', // On ne connaît pas la réponse, elle est stockée sous forme de hash dans le contrat
+              'solved', onchainRiddleData.winner !== '0x0000000000000000000000000000000000000000' ? '1' : '0',
+              'onchain', '1', // Flag pour identifier que c'est une énigme onchain
+              'isActive', onchainRiddleData.isActive ? '1' : '0'
+            );
+            console.log('\u00c9nigme onchain récupérée et stockée dans Redis');
+          } else {
+            console.log('Aucune énigme onchain active disponible sur le nœud Hardhat');
+            // Créer une énigme onchain factice pour le développement local
+            this.createLocalDummyOnchainRiddle();
+          }
+        } catch (localError) {
+          console.warn('Impossible de récupérer l\'\u00e9nigme depuis le nœud Hardhat local:', localError.message);
+          console.log('Création d\'une énigme onchain factice pour le développement local...');
+          // Créer une énigme onchain factice pour le développement local
+          this.createLocalDummyOnchainRiddle();
+        }
       } else {
-        console.log('No active onchain riddle available');
+        // Mode testnet (Sepolia)
+        // Récupérer l'énigme depuis la blockchain Ethereum
+        const onchainRiddleData = await this.ethereumService.getRiddle();
+        
+        if (onchainRiddleData.question && onchainRiddleData.isActive) {
+          // Stocker l'énigme onchain dans Redis
+          await this.redisClient.hset(
+            'riddle:onchain',
+            'id', 'onchain',
+            'question', onchainRiddleData.question,
+            'answer', '', // On ne connaît pas la réponse, elle est stockée sous forme de hash dans le contrat
+            'solved', onchainRiddleData.winner !== '0x0000000000000000000000000000000000000000' ? '1' : '0',
+            'onchain', '1', // Flag pour identifier que c'est une énigme onchain
+            'isActive', onchainRiddleData.isActive ? '1' : '0'
+          );
+          console.log('\u00c9nigme onchain récupérée et stockée dans Redis');
+        } else {
+          console.log('Aucune énigme onchain active disponible sur Sepolia');
+        }
       }
     } catch (error) {
-      console.error('Failed to fetch onchain riddle:', error);
+      console.error('\u00c9chec lors de la récupération de l\'\u00e9nigme onchain:', error);
+    }
+  }
+  
+  /**
+   * Crée une énigme onchain factice pour le développement local
+   * Cette méthode est utilisée uniquement en mode local lorsque le contrat n'est pas disponible
+   */
+  private async createLocalDummyOnchainRiddle() {
+    try {
+      await this.redisClient.hset(
+        'riddle:onchain',
+        'id', 'onchain',
+        'question', 'Ceci est une énigme de test pour le développement local avec Hardhat. Quelle est la réponse?',
+        'answer', '', // On ne connaît pas la réponse, elle est stockée sous forme de hash dans le contrat
+        'solved', '0',
+        'onchain', '1', // Flag pour identifier que c'est une énigme onchain
+        'isActive', '1'
+      );
+      console.log('\u00c9nigme onchain factice créée pour le développement local');
+    } catch (error) {
+      console.error('\u00c9chec lors de la création de l\'\u00e9nigme onchain factice:', error);
     }
   }
 }

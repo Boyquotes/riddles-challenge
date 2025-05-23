@@ -1,7 +1,10 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SEPOLIA_RPC_URL = exports.RIDDLE_CONTRACT_ABI = exports.RIDDLE_CONTRACT_ADDRESS = void 0;
-exports.RIDDLE_CONTRACT_ADDRESS = '0xA6FDC30159443F08a76dcAc0469A7d6B0dE878d2';
+exports.ACTIVE_BLOCK_EXPLORER = exports.ACTIVE_CURRENCY_NAME = exports.ACTIVE_NETWORK_NAME = exports.ACTIVE_CHAIN_ID = exports.ACTIVE_RPC_URL = exports.NETWORK_MODE = exports.HARDHAT_CHAIN_ID = exports.SEPOLIA_CHAIN_ID = exports.HARDHAT_RPC_URL = exports.SEPOLIA_RPC_URL = exports.RIDDLE_CONTRACT_ABI = exports.RIDDLE_CONTRACT_ADDRESS = void 0;
+const dotenv = require("dotenv");
+dotenv.config();
+exports.RIDDLE_CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0xA6FDC30159443F08a76dcAc0469A7d6B0dE878d2';
+console.log("RIDDLE_CONTRACT_ADDRESS", exports.RIDDLE_CONTRACT_ADDRESS);
 exports.RIDDLE_CONTRACT_ABI = [
     {
         "inputs": [],
@@ -138,4 +141,13 @@ exports.RIDDLE_CONTRACT_ABI = [
     }
 ];
 exports.SEPOLIA_RPC_URL = process.env.SEPOLIA_RPC_URL || 'https://sepolia.infura.io/v3/751622ee07f244f29a4c75bb6c9dff15';
+exports.HARDHAT_RPC_URL = process.env.HARDHAT_RPC_URL || 'http://127.0.0.1:8545/';
+exports.SEPOLIA_CHAIN_ID = 11155111;
+exports.HARDHAT_CHAIN_ID = 31337;
+exports.NETWORK_MODE = process.env.NETWORK_MODE || 'testnet';
+exports.ACTIVE_RPC_URL = exports.NETWORK_MODE === 'local' ? exports.HARDHAT_RPC_URL : exports.SEPOLIA_RPC_URL;
+exports.ACTIVE_CHAIN_ID = exports.NETWORK_MODE === 'local' ? exports.HARDHAT_CHAIN_ID : exports.SEPOLIA_CHAIN_ID;
+exports.ACTIVE_NETWORK_NAME = exports.NETWORK_MODE === 'local' ? 'Hardhat Local' : 'Sepolia Test Network';
+exports.ACTIVE_CURRENCY_NAME = exports.NETWORK_MODE === 'local' ? 'Hardhat ETH' : 'Sepolia ETH';
+exports.ACTIVE_BLOCK_EXPLORER = exports.NETWORK_MODE === 'local' ? '' : 'https://sepolia.etherscan.io/';
 //# sourceMappingURL=ethereum.constants.js.map

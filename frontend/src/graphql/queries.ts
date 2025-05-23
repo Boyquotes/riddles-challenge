@@ -27,6 +27,16 @@ export const CHECK_ANSWER = gql`
   }
 `;
 
+export const PREPARE_METAMASK_TRANSACTION = gql`
+  query PrepareMetaMaskTransaction($answer: String!) {
+    prepareMetaMaskTransaction(answer: $answer) {
+      to
+      data
+      chainId
+    }
+  }
+`;
+
 export const RIDDLE_SOLVED_SUBSCRIPTION = gql`
   subscription OnRiddleSolved {
     riddleSolved {

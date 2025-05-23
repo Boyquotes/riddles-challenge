@@ -2,6 +2,7 @@ import { Args, Mutation, Query, Resolver, Subscription } from '@nestjs/graphql';
 import { RiddlesService } from './riddles.service';
 import { Riddle } from './models/riddle.model';
 import { RiddleSolvedResponse } from './models/riddle-solved.model';
+import { MetaMaskTransaction } from './models/metamask-transaction.model';
 import { Inject } from '@nestjs/common';
 import { PUB_SUB } from '../common/constants';
 import { PubSub } from 'graphql-subscriptions';
@@ -47,6 +48,13 @@ export class RiddlesResolver {
     }
     
     return isCorrect;
+  }
+  
+  @Query(() => MetaMaskTransaction)
+  async prepareMetaMaskTransaction(
+    @Args('answer') answer: string,
+  ): Promise<MetaMaskTransaction> {
+    return this.riddlesService.prepareMetaMaskTransaction(answer);
   }
 
   @Subscription(() => RiddleSolvedResponse, {

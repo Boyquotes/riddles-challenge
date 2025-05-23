@@ -13,4 +13,5 @@ export declare class RedisService implements OnModuleInit, OnModuleDestroy {
     getRandomRiddleId(): Promise<string>;
     seedRiddles(): Promise<void>;
     fetchAndStoreOnchainRiddle(): Promise<void>;
+    private createLocalDummyOnchainRiddle;
 }

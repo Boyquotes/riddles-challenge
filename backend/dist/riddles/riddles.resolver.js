@@ -17,6 +17,7 @@ const graphql_1 = require("@nestjs/graphql");
 const riddles_service_1 = require("./riddles.service");
 const riddle_model_1 = require("./models/riddle.model");
 const riddle_solved_model_1 = require("./models/riddle-solved.model");
+const metamask_transaction_model_1 = require("./models/metamask-transaction.model");
 const common_1 = require("@nestjs/common");
 const constants_1 = require("../common/constants");
 const graphql_subscriptions_1 = require("graphql-subscriptions");
@@ -46,6 +47,9 @@ let RiddlesResolver = class RiddlesResolver {
             });
         }
         return isCorrect;
+    }
+    async prepareMetaMaskTransaction(answer) {
+        return this.riddlesService.prepareMetaMaskTransaction(answer);
     }
     riddleSolved() {
         return this.pubSub.asyncIterator('riddleSolved');
@@ -80,6 +84,13 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String]),
     __metadata("design:returntype", Promise)
 ], RiddlesResolver.prototype, "checkAnswer", null);
+__decorate([
+    (0, graphql_1.Query)(() => metamask_transaction_model_1.MetaMaskTransaction),
+    __param(0, (0, graphql_1.Args)('answer')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], RiddlesResolver.prototype, "prepareMetaMaskTransaction", null);
 __decorate([
     (0, graphql_1.Subscription)(() => riddle_solved_model_1.RiddleSolvedResponse, {
         name: 'riddleSolved',

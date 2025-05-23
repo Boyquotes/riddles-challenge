@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@apollo/client";
 import { GET_RANDOM_RIDDLE, CHECK_ANSWER, RIDDLE_SOLVED_SUBSCRIPTION } from "@/graphql/queries";
 import { getSocketClient } from "@/lib/socket-client";
+import MetaMaskButton from "@/components/MetaMaskButton";
 
 export default function Home() {
   const [riddle, setRiddle] = useState({ id: "", question: "Loading riddle..." });
@@ -178,6 +179,14 @@ export default function Home() {
           >
             Submit Answer
           </button>
+          
+          {/* MetaMask Button for onchain riddles */}
+          <MetaMaskButton 
+            riddleId={riddle.id} 
+            answer={answer}
+            onSuccess={() => setMessage("Réponse soumise à la blockchain avec succès!")} 
+            onError={(error) => setMessage(`Erreur: ${error}`)} 
+          />
         </form>
         
         {message && (

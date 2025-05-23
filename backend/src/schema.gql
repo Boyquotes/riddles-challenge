@@ -2,11 +2,22 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type MetaMaskTransaction {
+  blockExplorer: String
+  chainId: Float!
+  currencyName: String
+  data: String!
+  networkName: String
+  rpcUrl: String
+  to: String!
+}
+
 type Mutation {
   checkAnswer(answer: String!, id: String!, playerId: String!): Boolean!
 }
 
 type Query {
+  prepareMetaMaskTransaction(answer: String!): MetaMaskTransaction!
   randomRiddle: Riddle!
   riddle(id: String!): Riddle!
   riddles: [Riddle!]!

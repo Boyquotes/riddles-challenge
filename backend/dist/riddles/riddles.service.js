@@ -12,9 +12,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RiddlesService = void 0;
 const common_1 = require("@nestjs/common");
 const redis_service_1 = require("../common/redis.service");
+const ethereum_service_1 = require("../common/ethereum.service");
+const ethers_1 = require("ethers");
 let RiddlesService = class RiddlesService {
-    constructor(redisService) {
+    constructor(redisService, ethereumService) {
         this.redisService = redisService;
+        this.ethereumService = ethereumService;
     }
     async getRiddle(id) {
         const riddle = await this.redisService.getRiddle(id);
@@ -35,6 +38,14 @@ let RiddlesService = class RiddlesService {
     }
     async getRandomRiddle() {
         const id = await this.redisService.getRandomRiddleId();
+        if (id === 'game_over') {
+            return {
+                id: 'game_over',
+                question: 'Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.',
+                solved: true,
+                answer: 'Merci d\'avoir joué !'
+            };
+        }
         return this.getRiddle(id);
     }
     async checkAnswer(id, answer) {
@@ -42,16 +53,44 @@ let RiddlesService = class RiddlesService {
         if (!riddle) {
             return false;
         }
+        if (id === 'onchain' || riddle.onchain === '1') {
+            return this.checkOnchainAnswer(answer, riddle);
+        }
         const isCorrect = riddle.answer.toLowerCase() === answer.toLowerCase();
         if (isCorrect) {
             await this.redisService.getClient().hset(`riddle:${id}`, 'solved', '1');
         }
         return isCorrect;
     }
+    async checkOnchainAnswer(answer, riddle) {
+        try {
+            const answerHash = ethers_1.ethers.keccak256(ethers_1.ethers.toUtf8Bytes(answer));
+            const contract = this.ethereumService.getContract();
+            const isActive = await contract.isActive();
+            if (!isActive) {
+                console.log('Riddle is no longer active on the blockchain');
+                return false;
+            }
+            const isCorrect = await this.ethereumService.checkAnswer(answer);
+            if (isCorrect) {
+                await this.redisService.getClient().hset('riddle:onchain', 'solved', '1');
+                console.log('Onchain riddle solved correctly!');
+            }
+            return isCorrect;
+        }
+        catch (error) {
+            console.error('Error checking onchain answer:', error);
+            return false;
+        }
+    }
+    prepareMetaMaskTransaction(answer) {
+        return this.ethereumService.prepareMetaMaskTransaction(answer);
+    }
 };
 exports.RiddlesService = RiddlesService;
 exports.RiddlesService = RiddlesService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [redis_service_1.RedisService])
+    __metadata("design:paramtypes", [redis_service_1.RedisService,
+        ethereum_service_1.EthereumService])
 ], RiddlesService);
 //# sourceMappingURL=riddles.service.js.map
