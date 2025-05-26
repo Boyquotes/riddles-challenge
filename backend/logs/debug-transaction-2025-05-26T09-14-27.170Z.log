@@ -1,0 +1,15 @@
+2025-05-26T09:14:27.171Z === Démarrage du débogage de transaction ===
+2025-05-26T09:14:27.172Z Connexion au RPC: http://127.0.0.1:8545/
+2025-05-26T09:14:27.172Z Connexion au contrat: 0x5fbdb2315678afecb367f032d93f642f64180aa3
+2025-05-26T09:14:27.219Z État actuel du contrat:
+2025-05-26T09:14:27.219Z - Énigme: 
+2025-05-26T09:14:27.219Z - Active: false
+2025-05-26T09:14:27.220Z - Gagnant: 0x0000000000000000000000000000000000000000
+2025-05-26T09:14:27.220Z 
+Réponse à tester: "simple"
+2025-05-26T09:14:27.220Z Hash keccak256: 0x4a1b974e31e005ad301f0f7ef6ff3d756c261fe66213c0faa95f27c2befaed31
+2025-05-26T09:14:27.220Z 
+Clé privée trouvée dans les variables d'environnement.
+2025-05-26T09:14:27.221Z Pour exécuter une transaction réelle, décommentez le code dans le script.
+2025-05-26T09:14:27.221Z 
+=== Fin du débogage de transaction ===

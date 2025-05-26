@@ -15,6 +15,7 @@ const riddles_gateway_1 = require("./riddles.gateway");
 const graphql_subscriptions_1 = require("graphql-subscriptions");
 const constants_1 = require("../common/constants");
 const ethereum_service_1 = require("../common/ethereum.service");
+const socket_service_1 = require("../common/socket.service");
 let RiddlesModule = class RiddlesModule {
 };
 exports.RiddlesModule = RiddlesModule;
@@ -26,6 +27,7 @@ exports.RiddlesModule = RiddlesModule = __decorate([
             redis_service_1.RedisService,
             riddles_gateway_1.RiddlesGateway,
             ethereum_service_1.EthereumService,
+            socket_service_1.SocketService,
             {
                 provide: constants_1.PUB_SUB,
                 useValue: new graphql_subscriptions_1.PubSub(),

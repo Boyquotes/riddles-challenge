@@ -1,0 +1,24 @@
+2025-05-26T09:12:00.343Z === Démarrage du débogage de transaction ===
+2025-05-26T09:12:00.343Z Connexion au RPC: http://127.0.0.1:8545/
+2025-05-26T09:12:00.344Z Connexion au contrat: 0x5fbdb2315678afecb367f032d93f642f64180aa3
+2025-05-26T09:12:00.393Z État actuel du contrat:
+2025-05-26T09:12:00.393Z - Énigme: What has keys but no locks, space but no room, and you can enter but not go in?
+2025-05-26T09:12:00.393Z - Active: true
+2025-05-26T09:12:00.394Z - Gagnant: 0x0000000000000000000000000000000000000000
+2025-05-26T09:12:00.394Z 
+Réponse à tester: "simple"
+2025-05-26T09:12:00.394Z Hash keccak256: 0x4a1b974e31e005ad301f0f7ef6ff3d756c261fe66213c0faa95f27c2befaed31
+2025-05-26T09:12:00.394Z 
+Aucune clé privée trouvée dans les variables d'environnement. Création d'un portefeuille aléatoire pour la simulation...
+2025-05-26T09:12:00.425Z Portefeuille créé: 0x81bcfd5Be27C6787710266E8190B5bB12Bcf2bDE
+2025-05-26T09:12:00.426Z 
+Configuration des écouteurs d'événements...
+2025-05-26T09:12:00.426Z 
+Simulation de la transaction submitAnswer...
+2025-05-26T09:12:00.427Z Données d'appel: 0xbb3e31590000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000673696d706c650000000000000000000000000000000000000000000000000000
+2025-05-26T09:12:00.427Z 
+Estimation du gaz pour vérifier si la transaction réussirait...
+2025-05-26T09:12:00.441Z Estimation de gaz réussie: 28430 unités de gaz
+2025-05-26T09:12:00.442Z La transaction réussirait probablement, la réponse pourrait être correcte.
+2025-05-26T09:12:00.442Z 
+=== Fin du débogage de transaction ===

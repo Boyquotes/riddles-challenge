@@ -3,6 +3,7 @@
 import { ApolloProvider } from '@apollo/client';
 import { getApolloClient } from '@/lib/apollo-client';
 import React, { ReactNode } from 'react';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 interface ProvidersProps {
   children: ReactNode;
@@ -13,7 +14,9 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     <ApolloProvider client={client}>
-      {children}
+      <ToastProvider>
+        {children}
+      </ToastProvider>
     </ApolloProvider>
   );
 }

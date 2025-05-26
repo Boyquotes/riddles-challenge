@@ -15,6 +15,7 @@ export default function Home() {
   const [solvedBy, setSolvedBy] = useState("");
   const [wrongAnswer, setWrongAnswer] = useState({ playerNumber: 0, answer: "", visible: false });
   const [duplicateAnswer, setDuplicateAnswer] = useState({ playerNumber: 0, answer: "", visible: false });
+  const [blockchainError, setBlockchainError] = useState({ message: "", visible: false });
   
   const { loading, error, data, subscribeToMore } = useQuery(GET_RANDOM_RIDDLE);
   const [checkAnswer] = useMutation(CHECK_ANSWER);
@@ -23,7 +24,23 @@ export default function Home() {
     const socket = getSocketClient();
     
     if (socket) {
+      console.log('Socket.IO client initialized with ID:', socket.id);
       setPlayerId(socket.id);
+      
+      // Add a connect event listener to debug connection issues
+      socket.on('connect', () => {
+        console.log('Socket.IO connected with ID:', socket.id);
+      });
+      
+      // Add a disconnect event listener
+      socket.on('disconnect', (reason) => {
+        console.log('Socket.IO disconnected:', reason);
+      });
+      
+      // Add a connect_error event listener
+      socket.on('connect_error', (error) => {
+        console.error('Socket.IO connection error:', error);
+      });
       
       socket.on('currentRiddle', (data: { id: string; question: string }) => {
         setRiddle(data);
@@ -76,6 +93,23 @@ export default function Home() {
           setDuplicateAnswer(prev => ({ ...prev, visible: false }));
         }, 3000);
       });
+      
+      // Listen for blockchain error notifications
+      socket.on('blockchainErrorNotification', (data) => {
+        console.log('Blockchain error notification received:', data);
+        // Alert for debugging purposes
+        // alert(`Blockchain error: ${data.error}`);
+        
+        setBlockchainError({
+          message: data.error,
+          visible: true
+        });
+        
+        // Hide the blockchain error notification after 7 seconds
+        setTimeout(() => {
+          setBlockchainError(prev => ({ ...prev, visible: false }));
+        }, 7000);
+      });
     }
     
     return () => {
@@ -86,6 +120,7 @@ export default function Home() {
         socket.off('answerResponse');
         socket.off('wrongAnswer');
         socket.off('duplicateAnswer');
+        socket.off('blockchainErrorNotification');
       }
     };
   }, []);
@@ -184,7 +219,7 @@ export default function Home() {
           <MetaMaskButton 
             riddleId={riddle.id} 
             answer={answer}
-            onSuccess={() => setMessage("Réponse soumise à la blockchain avec succès!")} 
+            onSuccess={() => setMessage("Réponse soumise à la blockchain!")} 
             onError={(error) => setMessage(`Erreur: ${error}`)} 
           />
         </form>
@@ -206,10 +241,31 @@ export default function Home() {
             Player {duplicateAnswer.playerNumber} tried: "{duplicateAnswer.answer}" - This answer was already tried!
           </div>
         )}
+        
+        {blockchainError.visible && (
+          <div className="p-3 rounded-md text-center text-sm bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 mt-2 font-bold">
+            Erreur Blockchain: {blockchainError.message}
+          </div>
+        )}
       </main>
       
       <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
         <p>Riddle Game - Real-time multiplayer with WebSockets and GraphQL</p>
+        
+        {/* Test button for debugging - only visible in development */}
+        <button 
+          onClick={() => {
+            setBlockchainError({
+              message: "[Test] Tentative de préparation d'une transaction pour une énigme inactive",
+              visible: true
+            });
+            setTimeout(() => {
+              setBlockchainError(prev => ({ ...prev, visible: false }));
+            }, 7000);
+          }}
+          className="mt-4 px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs rounded">
+          Test Blockchain Error
+        </button>
       </footer>
     </div>
   );

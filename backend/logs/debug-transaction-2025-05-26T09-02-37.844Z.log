@@ -1,0 +1,24 @@
+2025-05-26T09:02:37.844Z === Démarrage du débogage de transaction ===
+2025-05-26T09:02:37.845Z Connexion au RPC: https://sepolia.infura.io/v3/751622ee07f244f29a4c75bb6c9dff15
+2025-05-26T09:02:37.845Z Connexion au contrat: 0xA6FDC30159443F08a76dcAc0469A7d6B0dE878d2
+2025-05-26T09:02:39.072Z État actuel du contrat:
+2025-05-26T09:02:39.072Z - Énigme: What has keys but no locks, space but no room, and you can enter but not go in?
+2025-05-26T09:02:39.072Z - Active: false
+2025-05-26T09:02:39.073Z - Gagnant: 0xB358CfAf4b2ad1CfeCC75791845EFA73af94812b
+2025-05-26T09:02:39.074Z 
+Réponse à tester: "simple"
+2025-05-26T09:02:39.075Z Hash keccak256: 0x4a1b974e31e005ad301f0f7ef6ff3d756c261fe66213c0faa95f27c2befaed31
+2025-05-26T09:02:39.075Z 
+Aucune clé privée trouvée dans les variables d'environnement. Création d'un portefeuille aléatoire pour la simulation...
+2025-05-26T09:02:39.132Z Portefeuille créé: 0xF50d6b75739303Ca07916FB474Aa83ef07acF51D
+2025-05-26T09:02:39.132Z 
+Configuration des écouteurs d'événements...
+2025-05-26T09:02:39.132Z 
+Simulation de la transaction submitAnswer...
+2025-05-26T09:02:39.133Z Données d'appel: 0xbb3e31590000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000673696d706c650000000000000000000000000000000000000000000000000000
+2025-05-26T09:02:39.133Z 
+Estimation du gaz pour vérifier si la transaction réussirait...
+2025-05-26T09:02:39.324Z Échec de l'estimation de gaz: execution reverted: "No active riddle" (action="estimateGas", data="0x08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000104e6f2061637469766520726964646c6500000000000000000000000000000000", reason="No active riddle", transaction={ "data": "0xbb3e31590000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000673696d706c650000000000000000000000000000000000000000000000000000", "from": "0xF50d6b75739303Ca07916FB474Aa83ef07acF51D", "to": "0xA6FDC30159443F08a76dcAc0469A7d6B0dE878d2" }, invocation=null, revert={ "args": [ "No active riddle" ], "name": "Error", "signature": "Error(string)" }, code=CALL_EXCEPTION, version=6.14.1)
+2025-05-26T09:02:39.325Z La transaction échouerait, la réponse est probablement incorrecte.
+2025-05-26T09:02:39.325Z 
+=== Fin du débogage de transaction ===

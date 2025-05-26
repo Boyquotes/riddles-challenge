@@ -1,0 +1,28 @@
+2025-05-26T09:28:39.978Z === Démarrage du débogage de transaction ===
+2025-05-26T09:28:39.978Z Connexion au RPC: http://127.0.0.1:8545/
+2025-05-26T09:28:39.979Z Connexion au contrat: 0x5fbdb2315678afecb367f032d93f642f64180aa3
+2025-05-26T09:28:40.028Z État actuel du contrat:
+2025-05-26T09:28:40.029Z - Énigme: What has keys but no locks, space but no room, and you can enter but not go in?
+2025-05-26T09:28:40.029Z - Active: true
+2025-05-26T09:28:40.029Z - Gagnant: 0x0000000000000000000000000000000000000000
+2025-05-26T09:28:40.029Z 
+Réponse à tester: "simple"
+2025-05-26T09:28:40.030Z Hash keccak256: 0x4a1b974e31e005ad301f0f7ef6ff3d756c261fe66213c0faa95f27c2befaed31
+2025-05-26T09:28:40.030Z 
+Clé privée trouvée dans les variables d'environnement.
+2025-05-26T09:28:40.030Z Pour exécuter une transaction réelle, décommentez le code dans le script.
+2025-05-26T09:28:40.048Z Utilisation du portefeuille: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+2025-05-26T09:28:40.049Z 
+Configuration des écouteurs d'événements...
+2025-05-26T09:28:40.050Z 
+Soumission de la réponse au contrat...
+2025-05-26T09:28:40.134Z Transaction envoyée: 0x5072f9f4baa8aaef2f774e2ac41ce5d83b6b97301c2dd18f7d7faadda5711ef2
+2025-05-26T09:28:40.134Z Attente de la confirmation de la transaction...
+2025-05-26T09:28:44.122Z Transaction réussie!
+2025-05-26T09:28:44.126Z Nombre d'événements: 1
+2025-05-26T09:28:44.128Z Événement 1: AnswerAttempt
+2025-05-26T09:28:44.128Z Arguments: ["0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",false]
+2025-05-26T09:28:44.134Z Nouveau gagnant: 0x0000000000000000000000000000000000000000
+2025-05-26T09:28:44.134Z Sommes-nous le gagnant? false
+2025-05-26T09:28:44.134Z 
+=== Fin du débogage de transaction ===

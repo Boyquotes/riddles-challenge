@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { RiddlesModule } from './riddles/riddles.module';
 import { join } from 'path';
 
@@ -16,6 +17,7 @@ import { join } from 'path';
         'subscriptions-transport-ws': true,
       },
     }),
+    EventEmitterModule.forRoot(),
     RiddlesModule,
   ],
 })

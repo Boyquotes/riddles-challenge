@@ -104,8 +104,14 @@ export class RiddlesService {
   /**
    * Prepare transaction data for MetaMask to submit an answer to the contract
    * This returns the data needed for the frontend to create a transaction with MetaMask
+   * @throws Error if the riddle is not active or other blockchain errors
    */
-  prepareMetaMaskTransaction(answer: string): MetaMaskTransaction {
-    return this.ethereumService.prepareMetaMaskTransaction(answer);
+  async prepareMetaMaskTransaction(answer: string): Promise<MetaMaskTransaction> {
+    try {
+      return await this.ethereumService.prepareMetaMaskTransaction(answer);
+    } catch (error) {
+      // Propager l'erreur pour que le resolver puisse la gérer
+      throw error;
+    }
   }
 }

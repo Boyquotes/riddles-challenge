@@ -96,7 +96,7 @@ let RedisService = class RedisService {
                 try {
                     const onchainRiddleData = await this.ethereumService.getRiddle();
                     if (onchainRiddleData.question && onchainRiddleData.isActive) {
-                        await this.redisClient.hset('riddle:onchain', 'id', 'onchain', 'question', onchainRiddleData.question, 'answer', '', 'solved', onchainRiddleData.winner !== '0x0000000000000000000000000000000000000000' ? '1' : '0', 'onchain', '1', 'isActive', onchainRiddleData.isActive ? '1' : '0');
+                        await this.redisClient.hset('riddle:onchain', 'id', 'onchain', 'question', onchainRiddleData.question, 'answer', '0x4a1b974e31e005ad301f0f7ef6ff3d756c261fe66213c0faa95f27c2befaed31', 'solved', onchainRiddleData.winner !== '0x0000000000000000000000000000000000000000' ? '1' : '0', 'onchain', '1', 'isActive', onchainRiddleData.isActive ? '1' : '0');
                         console.log('\u00c9nigme onchain récupérée et stockée dans Redis');
                     }
                     else {
@@ -127,7 +127,7 @@ let RedisService = class RedisService {
     }
     async createLocalDummyOnchainRiddle() {
         try {
-            await this.redisClient.hset('riddle:onchain', 'id', 'onchain', 'question', 'Ceci est une énigme de test pour le développement local avec Hardhat. Quelle est la réponse?', 'answer', '', 'solved', '0', 'onchain', '1', 'isActive', '1');
+            await this.redisClient.hset('riddle:onchain', 'id', 'onchain', 'question', 'What has keys but no locks, space but no room, and you can enter but not go in?', 'answer', '0xe8d6f33c864d8c15cf8e3284db164ba343453a48937e23d2f191bd2297a9543f', 'solved', '0', 'onchain', '1', 'isActive', '1');
             console.log('\u00c9nigme onchain factice créée pour le développement local');
         }
         catch (error) {

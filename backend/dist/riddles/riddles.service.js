@@ -83,8 +83,13 @@ let RiddlesService = class RiddlesService {
             return false;
         }
     }
-    prepareMetaMaskTransaction(answer) {
-        return this.ethereumService.prepareMetaMaskTransaction(answer);
+    async prepareMetaMaskTransaction(answer) {
+        try {
+            return await this.ethereumService.prepareMetaMaskTransaction(answer);
+        }
+        catch (error) {
+            throw error;
+        }
     }
 };
 exports.RiddlesService = RiddlesService;

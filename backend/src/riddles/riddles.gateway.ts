@@ -4,16 +4,18 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { RiddlesService } from './riddles.service';
+import { SocketService } from '../common/socket.service';
 
 @WebSocketGateway({
   cors: {
     origin: '*',
   },
 })
-export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
   @WebSocketServer()
   server: Server;
 
@@ -22,7 +24,27 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect 
   private playerAnswers: Map<string, Set<string>> = new Map();
   private globalAttemptedAnswers: Map<string, Set<string>> = new Map();
 
-  constructor(private readonly riddlesService: RiddlesService) {}
+  constructor(
+    private readonly riddlesService: RiddlesService,
+    private readonly socketService: SocketService
+  ) {}
+  
+  afterInit(server: Server) {
+    // Fournir l'instance du serveur Socket.IO au SocketService
+    this.socketService.setSocketServer(server);
+    console.log('WebSocket Gateway initialized and Socket.IO server provided to SocketService');
+    
+    // Ajouter un écouteur d'événements global pour déboguer
+    server.on('connection', (socket) => {
+      console.log(`Client connected to Socket.IO: ${socket.id}`);
+      
+      // Test d'émission d'un événement blockchain error pour déboguer
+      setTimeout(() => {
+        console.log(`Test d'émission d'un événement blockchainErrorNotification au client ${socket.id}`);
+        socket.emit('blockchainErrorNotification', { error: 'Test de notification d\'erreur blockchain' });
+      }, 5000);
+    });
+  }
   
   // Helper method to get the player number based on connection order
   private getPlayerNumber(playerId: string): number {
@@ -58,6 +80,21 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect 
     console.log(`Client disconnected: ${client.id}`);
     this.activePlayers.delete(client.id);
     this.server.emit('playerCount', this.activePlayers.size);
+  }
+
+  @SubscribeMessage('blockchainError')
+  handleBlockchainError(client: Socket, payload: { error: string }) {
+    const { error } = payload;
+    
+    // Log the error on the server side
+    console.log(`Blockchain error from client ${client.id}:`, error);
+    
+    // Broadcast the error to all clients or just to the client who experienced it
+    // Option 1: Broadcast to all clients
+    // this.server.emit('blockchainErrorNotification', { error });
+    
+    // Option 2: Send only to the client who experienced the error
+    client.emit('blockchainErrorNotification', { error });
   }
 
   @SubscribeMessage('submitAnswer')

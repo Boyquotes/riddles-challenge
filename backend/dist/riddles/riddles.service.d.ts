@@ -11,5 +11,5 @@ export declare class RiddlesService {
     getRandomRiddle(): Promise<Riddle>;
     checkAnswer(id: string, answer: string): Promise<boolean>;
     checkOnchainAnswer(answer: string, riddle: any): Promise<boolean>;
-    prepareMetaMaskTransaction(answer: string): MetaMaskTransaction;
+    prepareMetaMaskTransaction(answer: string): Promise<MetaMaskTransaction>;
 }

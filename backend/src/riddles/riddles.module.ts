@@ -6,6 +6,7 @@ import { RiddlesGateway } from './riddles.gateway';
 import { PubSub } from 'graphql-subscriptions';
 import { PUB_SUB } from '../common/constants';
 import { EthereumService } from '../common/ethereum.service';
+import { SocketService } from '../common/socket.service';
 
 @Module({
   providers: [
@@ -14,6 +15,7 @@ import { EthereumService } from '../common/ethereum.service';
     RedisService, 
     RiddlesGateway,
     EthereumService,
+    SocketService,
     {
       provide: PUB_SUB,
       useValue: new PubSub(),

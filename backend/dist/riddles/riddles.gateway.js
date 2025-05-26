@@ -13,13 +13,26 @@ exports.RiddlesGateway = void 0;
 const websockets_1 = require("@nestjs/websockets");
 const socket_io_1 = require("socket.io");
 const riddles_service_1 = require("./riddles.service");
+const socket_service_1 = require("../common/socket.service");
 let RiddlesGateway = class RiddlesGateway {
-    constructor(riddlesService) {
+    constructor(riddlesService, socketService) {
         this.riddlesService = riddlesService;
+        this.socketService = socketService;
         this.activeRiddleId = null;
         this.activePlayers = new Map();
         this.playerAnswers = new Map();
         this.globalAttemptedAnswers = new Map();
+    }
+    afterInit(server) {
+        this.socketService.setSocketServer(server);
+        console.log('WebSocket Gateway initialized and Socket.IO server provided to SocketService');
+        server.on('connection', (socket) => {
+            console.log(`Client connected to Socket.IO: ${socket.id}`);
+            setTimeout(() => {
+                console.log(`Test d'émission d'un événement blockchainErrorNotification au client ${socket.id}`);
+                socket.emit('blockchainErrorNotification', { error: 'Test de notification d\'erreur blockchain' });
+            }, 5000);
+        });
     }
     getPlayerNumber(playerId) {
         const players = Array.from(this.activePlayers.keys());
@@ -45,6 +58,11 @@ let RiddlesGateway = class RiddlesGateway {
         console.log(`Client disconnected: ${client.id}`);
         this.activePlayers.delete(client.id);
         this.server.emit('playerCount', this.activePlayers.size);
+    }
+    handleBlockchainError(client, payload) {
+        const { error } = payload;
+        console.log(`Blockchain error from client ${client.id}:`, error);
+        client.emit('blockchainErrorNotification', { error });
     }
     async handleSubmitAnswer(client, payload) {
         const playerId = client.id;
@@ -112,6 +130,12 @@ __decorate([
     __metadata("design:type", socket_io_1.Server)
 ], RiddlesGateway.prototype, "server", void 0);
 __decorate([
+    (0, websockets_1.SubscribeMessage)('blockchainError'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
+    __metadata("design:returntype", void 0)
+], RiddlesGateway.prototype, "handleBlockchainError", null);
+__decorate([
     (0, websockets_1.SubscribeMessage)('submitAnswer'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [socket_io_1.Socket, Object]),
@@ -123,6 +147,7 @@ exports.RiddlesGateway = RiddlesGateway = __decorate([
             origin: '*',
         },
     }),
-    __metadata("design:paramtypes", [riddles_service_1.RiddlesService])
+    __metadata("design:paramtypes", [riddles_service_1.RiddlesService,
+        socket_service_1.SocketService])
 ], RiddlesGateway);
 //# sourceMappingURL=riddles.gateway.js.map

@@ -10,6 +10,7 @@ exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const graphql_1 = require("@nestjs/graphql");
 const apollo_1 = require("@nestjs/apollo");
+const event_emitter_1 = require("@nestjs/event-emitter");
 const riddles_module_1 = require("./riddles/riddles.module");
 const path_1 = require("path");
 let AppModule = class AppModule {
@@ -28,6 +29,7 @@ exports.AppModule = AppModule = __decorate([
                     'subscriptions-transport-ws': true,
                 },
             }),
+            event_emitter_1.EventEmitterModule.forRoot(),
             riddles_module_1.RiddlesModule,
         ],
     })

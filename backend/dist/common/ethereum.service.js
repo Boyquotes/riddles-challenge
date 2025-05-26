@@ -8,16 +8,26 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var EthereumService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.EthereumService = void 0;
 const common_1 = require("@nestjs/common");
 const ethers_1 = require("ethers");
+const event_emitter_1 = require("@nestjs/event-emitter");
+const socket_service_1 = require("./socket.service");
 const ethereum_constants_1 = require("./ethereum.constants");
-let EthereumService = class EthereumService {
-    constructor() {
+let EthereumService = EthereumService_1 = class EthereumService {
+    constructor(eventEmitter, socketService) {
+        this.eventEmitter = eventEmitter;
+        this.socketService = socketService;
+        this.logger = new common_1.Logger(EthereumService_1.name);
+        this.eventListeners = [];
+        setTimeout(() => {
+            this.testEmitBlockchainError();
+        }, 10000);
         try {
             const networkMode = process.env.NETWORK_MODE || 'testnet';
-            console.log(`Mode réseau: ${networkMode}`);
+            this.logger.log(`Mode réseau: ${networkMode}`);
             if (networkMode === 'local') {
                 class HardhatProvider extends ethers_1.ethers.JsonRpcProvider {
                     async resolveName(name) {
@@ -28,19 +38,109 @@ let EthereumService = class EthereumService {
                     }
                 }
                 this.provider = new HardhatProvider(ethereum_constants_1.ACTIVE_RPC_URL);
-                console.log('Utilisation du provider Hardhat personnalisé sans ENS');
+                this.logger.log('Utilisation du provider Hardhat personnalisé sans ENS');
             }
             else {
                 this.provider = new ethers_1.ethers.JsonRpcProvider(ethereum_constants_1.ACTIVE_RPC_URL);
-                console.log('Utilisation du provider standard pour le réseau de test');
+                this.logger.log('Utilisation du provider standard pour le réseau de test');
             }
-            console.log(`Provider configuré pour le réseau: ${networkMode}, RPC: ${ethereum_constants_1.ACTIVE_RPC_URL}, ChainId: ${ethereum_constants_1.ACTIVE_CHAIN_ID}`);
+            this.logger.log(`Provider configuré pour le réseau: ${networkMode}, RPC: ${ethereum_constants_1.ACTIVE_RPC_URL}, ChainId: ${ethereum_constants_1.ACTIVE_CHAIN_ID}`);
             this.contract = new ethers_1.ethers.Contract(ethereum_constants_1.RIDDLE_CONTRACT_ADDRESS, ethereum_constants_1.RIDDLE_CONTRACT_ABI, this.provider);
-            console.log(`Contrat configuré à l'adresse: ${ethereum_constants_1.RIDDLE_CONTRACT_ADDRESS}`);
+            this.logger.log(`Contrat configuré à l'adresse: ${ethereum_constants_1.RIDDLE_CONTRACT_ADDRESS}`);
         }
         catch (error) {
-            console.error('Erreur lors de l\'initialisation du service Ethereum:', error);
+            this.logger.error('Erreur lors de l\'initialisation du service Ethereum:', error);
             throw error;
+        }
+    }
+    async onModuleInit() {
+        this.logger.log('Initialisation du service Ethereum...');
+        await this.setupEventListeners();
+    }
+    async onModuleDestroy() {
+        this.logger.log('Nettoyage des écouteurs d\'événements...');
+        await this.cleanupEventListeners();
+    }
+    testEmitBlockchainError() {
+        console.log('Test d\'envoi d\'une notification d\'erreur blockchain via Socket.IO');
+        const testErrorMsg = '[TEST] Tentative de préparation d\'une transaction pour une énigme inactive';
+        this.socketService.emitBlockchainError(testErrorMsg);
+    }
+    async setupEventListeners() {
+        try {
+            const networkMode = process.env.NETWORK_MODE || 'testnet';
+            const winnerListener = (...args) => {
+                try {
+                    const winner = args[0];
+                    this.logger.log(`Événement Winner détecté! Gagnant: ${winner}`);
+                    this.logger.log(`Arguments complets de l'événement Winner: ${JSON.stringify(args)}`);
+                    this.eventEmitter.emit('riddle.solved', {
+                        winner,
+                        timestamp: new Date().toISOString(),
+                        riddleId: 'onchain'
+                    });
+                }
+                catch (error) {
+                    this.logger.error(`Erreur lors du traitement de l'événement Winner:`, error);
+                    this.logger.error(`Arguments reçus: ${typeof args}, ${Array.isArray(args) ? 'Array' : 'Not Array'}, ${args ? 'Not null' : 'Null'}`);
+                    if (args) {
+                        try {
+                            this.logger.error(`Arguments bruts: ${args.toString()}`);
+                        }
+                        catch (e) {
+                            this.logger.error(`Impossible de convertir les arguments en string:`, e);
+                        }
+                    }
+                }
+            };
+            this.contract.on('Winner', winnerListener);
+            this.eventListeners.push({ eventName: 'Winner', listener: winnerListener });
+            this.logger.log('Écouteur d\'événement Winner configuré');
+            const answerAttemptListener = (...args) => {
+                try {
+                    const user = args[0];
+                    const correct = args[1];
+                    this.logger.log(`Événement AnswerAttempt détecté! Utilisateur: ${user}, Correct: ${correct}`);
+                    this.logger.log(`Arguments complets de l'événement AnswerAttempt: ${JSON.stringify(args)}`);
+                    this.eventEmitter.emit('riddle.attempt', {
+                        user,
+                        correct,
+                        timestamp: new Date().toISOString(),
+                        riddleId: 'onchain'
+                    });
+                }
+                catch (error) {
+                    this.logger.error(`Erreur lors du traitement de l'événement AnswerAttempt:`, error);
+                    this.logger.error(`Arguments reçus: ${typeof args}, ${Array.isArray(args) ? 'Array' : 'Not Array'}, ${args ? 'Not null' : 'Null'}`);
+                    if (args) {
+                        try {
+                            this.logger.error(`Arguments bruts: ${args.toString()}`);
+                        }
+                        catch (e) {
+                            this.logger.error(`Impossible de convertir les arguments en string:`, e);
+                        }
+                    }
+                }
+            };
+            this.contract.on('AnswerAttempt', answerAttemptListener);
+            this.eventListeners.push({ eventName: 'AnswerAttempt', listener: answerAttemptListener });
+            this.logger.log('Écouteur d\'événement AnswerAttempt configuré');
+            this.logger.log('Écouteurs d\'événements configurés avec succès');
+        }
+        catch (error) {
+            this.logger.error('Erreur lors de la configuration des écouteurs d\'événements:', error);
+        }
+    }
+    async cleanupEventListeners() {
+        try {
+            for (const { eventName, listener } of this.eventListeners) {
+                this.contract.off(eventName, listener);
+            }
+            this.eventListeners = [];
+            this.logger.log('Écouteurs d\'événements nettoyés avec succès');
+        }
+        catch (error) {
+            this.logger.error('Erreur lors du nettoyage des écouteurs d\'événements:', error);
         }
     }
     getContract() {
@@ -58,52 +158,73 @@ let EthereumService = class EthereumService {
             };
         }
         catch (error) {
-            console.error('Error fetching riddle from blockchain:', error);
+            this.logger.error('Erreur lors de la récupération de l\'énigme depuis la blockchain:', error);
             throw new Error('Failed to fetch riddle from blockchain');
         }
     }
     async checkAnswer(answer) {
         try {
             const answerHash = ethers_1.ethers.keccak256(ethers_1.ethers.toUtf8Bytes(answer));
+            this.logger.log(`Hash de la réponse proposée: ${answerHash}`);
             const isActive = await this.contract.isActive();
             const winner = await this.contract.winner();
             const riddleText = await this.contract.riddle();
-            console.log('Riddle text:', riddleText);
-            console.log('Is active:', isActive);
-            console.log('Winner:', winner);
-            if (!isActive || winner !== ethers_1.ethers.ZeroAddress) {
+            this.logger.log({
+                riddleText,
+                isActive,
+                winner,
+            });
+            this.logger.log('Hashs pour des réponses communes:');
+            const commonAnswers = ['42', 'hello', 'world', 'ethereum', 'blockchain', 'smart contract', 'zama', 'fhe', 'privacy', 'crypto', 'answer', 'solution', 'correct', 'true', 'false', 'yes', 'no', 'maybe', 'secret', 'password'];
+            for (const commonAnswer of commonAnswers) {
+                const hash = ethers_1.ethers.keccak256(ethers_1.ethers.toUtf8Bytes(commonAnswer));
+                this.logger.log(`${commonAnswer}: ${hash}`);
+            }
+            try {
+                const wallet = ethers_1.ethers.Wallet.createRandom().connect(this.provider);
+                const contractWithSigner = this.contract.connect(wallet);
+                await this.contract.getFunction('submitAnswer').estimateGas(answer, { from: wallet.address });
+                this.logger.log('La simulation de transaction a réussi, la réponse pourrait être correcte');
+                return true;
+            }
+            catch (simulationError) {
+                this.logger.log('La simulation de transaction a échoué, la réponse est probablement incorrecte:', simulationError);
                 return false;
             }
-            const callData = this.contract.interface.encodeFunctionData('submitAnswer', [answer]);
-            const result = await this.provider.call({
-                to: ethereum_constants_1.RIDDLE_CONTRACT_ADDRESS,
-                data: callData
-            });
-            console.log('Answer checked successfully');
-            console.log('Answer hash:', answerHash);
-            console.log('Answer:', answer);
-            console.log('Result:', result);
-            console.log('Result hash:', ethers_1.ethers.keccak256(result));
-            console.log(`Checking answer hash: ${answerHash}`);
-            return false;
         }
         catch (error) {
-            console.error('Error checking answer:', error);
+            this.logger.error('Erreur lors de la vérification de la réponse:', error);
             return false;
         }
     }
-    prepareMetaMaskTransaction(answer) {
-        const callData = this.contract.interface.encodeFunctionData('submitAnswer', [answer]);
-        const { ACTIVE_NETWORK_NAME, ACTIVE_CURRENCY_NAME, ACTIVE_RPC_URL, ACTIVE_BLOCK_EXPLORER } = require('./ethereum.constants');
-        return {
-            to: ethereum_constants_1.RIDDLE_CONTRACT_ADDRESS,
-            data: callData,
-            chainId: ethereum_constants_1.ACTIVE_CHAIN_ID,
-            networkName: ACTIVE_NETWORK_NAME,
-            currencyName: ACTIVE_CURRENCY_NAME,
-            rpcUrl: ACTIVE_RPC_URL,
-            blockExplorer: ACTIVE_BLOCK_EXPLORER
-        };
+    async prepareMetaMaskTransaction(answer) {
+        try {
+            const isActive = await this.contract.isActive();
+            if (!isActive) {
+                const errorMsg = '[EthereumService] Tentative de préparation d\'une transaction pour une énigme inactive';
+                this.logger.error(errorMsg);
+                console.error(errorMsg);
+                this.socketService.emitBlockchainError(errorMsg);
+                throw new Error(errorMsg);
+            }
+            const callData = this.contract.interface.encodeFunctionData('submitAnswer', [answer]);
+            return {
+                to: ethereum_constants_1.RIDDLE_CONTRACT_ADDRESS,
+                data: callData,
+                chainId: ethereum_constants_1.ACTIVE_CHAIN_ID,
+                networkName: ethereum_constants_1.ACTIVE_NETWORK_NAME,
+                currencyName: ethereum_constants_1.ACTIVE_CURRENCY_NAME,
+                rpcUrl: ethereum_constants_1.ACTIVE_RPC_URL,
+                blockExplorer: ethereum_constants_1.ACTIVE_BLOCK_EXPLORER
+            };
+        }
+        catch (error) {
+            const errorMsg = `[EthereumService] Erreur lors de la préparation de la transaction MetaMask: ${error.message}`;
+            this.logger.error(errorMsg);
+            console.error(errorMsg);
+            this.socketService.emitBlockchainError(errorMsg);
+            throw new Error(errorMsg);
+        }
     }
     async submitAnswer(answer, walletKey) {
         try {
@@ -112,29 +233,30 @@ let EthereumService = class EthereumService {
                 signer = new ethers_1.ethers.Wallet(walletKey, this.provider);
             }
             else {
-                console.warn('No wallet key provided, using read-only mode');
+                this.logger.warn('Aucune clé de portefeuille fournie, utilisation du mode lecture seule');
                 return await this.checkAnswer(answer);
             }
             const contractWithSigner = this.contract.connect(signer);
             const tx = await contractWithSigner.submitAnswer(answer);
             const receipt = await tx.wait();
-            if (receipt.status === 1) {
+            if (receipt && receipt.status === 1) {
                 const winner = await this.contract.winner();
                 const isWinner = winner.toLowerCase() === signer.address.toLowerCase();
-                console.log(`Answer submitted successfully. Is winner: ${isWinner}`);
+                this.logger.log(`Réponse soumise avec succès. Est gagnant: ${isWinner}`);
                 return isWinner;
             }
             return false;
         }
         catch (error) {
-            console.error('Error submitting answer to contract:', error);
+            this.logger.error('Erreur lors de la soumission de la réponse au contrat:', error);
             return false;
         }
     }
 };
 exports.EthereumService = EthereumService;
-exports.EthereumService = EthereumService = __decorate([
+exports.EthereumService = EthereumService = EthereumService_1 = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [])
+    __metadata("design:paramtypes", [event_emitter_1.EventEmitter2,
+        socket_service_1.SocketService])
 ], EthereumService);
 //# sourceMappingURL=ethereum.service.js.map
