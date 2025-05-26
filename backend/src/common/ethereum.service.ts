@@ -34,9 +34,9 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
     private readonly socketService: SocketService
   ) {
     // Test d'émission d'erreur blockchain après 10 secondes
-    setTimeout(() => {
-      this.testEmitBlockchainError();
-    }, 10000);
+    // setTimeout(() => {
+    //   this.testEmitBlockchainError();
+    // }, 10000);
     try {
       // Configurer le provider pour le réseau approprié
       const networkMode = process.env.NETWORK_MODE || 'testnet';
@@ -162,6 +162,15 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
             timestamp: new Date().toISOString(),
             riddleId: 'onchain'
           });
+          
+          // Émettre une notification selon le résultat de la tentative
+          if (correct === true) {
+            this.logger.log('Réponse correcte détectée, envoi de notification de succès aux clients');
+            this.socketService.emitBlockchainSuccess('Riddle solved!');
+          } else {
+            this.logger.log('Réponse incorrecte détectée, envoi de notification aux clients');
+            this.socketService.emitBlockchainError('Énigme non résolue. La réponse soumise est incorrecte.');
+          }
         } catch (error) {
           this.logger.error(`Erreur lors du traitement de l'événement AnswerAttempt:`, error);
           this.logger.error(`Arguments reçus: ${typeof args}, ${Array.isArray(args) ? 'Array' : 'Not Array'}, ${args ? 'Not null' : 'Null'}`);
@@ -318,7 +327,8 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
       
       // Encoder les données d'appel de fonction pour submitAnswer
       const callData = this.contract.interface.encodeFunctionData('submitAnswer', [answer]);
-      
+      console.log('callData', callData);
+      this.logger.log('callData', callData);
       // Retourner les paramètres de transaction nécessaires pour MetaMask
       return {
         to: RIDDLE_CONTRACT_ADDRESS,
@@ -351,6 +361,10 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
       // Si une clé de portefeuille est fournie, l'utiliser pour créer un signataire
       // Sinon, ce sera un appel en lecture seule
       let signer;
+      console.log('walletKey', walletKey);
+      console.log('this.provider', this.provider);
+      console.log('this.contract', this.contract);
+      console.log('answer', answer);
       if (walletKey) {
         signer = new ethers.Wallet(walletKey, this.provider);
       } else {
@@ -381,6 +395,59 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
       return false;
     } catch (error) {
       this.logger.error('Erreur lors de la soumission de la réponse au contrat:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Définit une nouvelle énigme dans le contrat
+   * @param riddle Le texte de l'énigme
+   * @param answerHash Le hash keccak256 de la réponse
+   * @param walletKey Clé privée du portefeuille pour signer la transaction (optionnel pour le mode local)
+   * @returns true si l'énigme a été définie avec succès, false sinon
+   */
+  async setRiddle(riddle: string, answerHash: string, walletKey?: string): Promise<boolean> {
+    try {
+      // Si une clé de portefeuille est fournie, l'utiliser pour créer un signataire
+      // Sinon, simuler l'opération en mode local
+      let signer;
+      if (walletKey) {
+        signer = new ethers.Wallet(walletKey, this.provider);
+      } else {
+        // En mode local ou pour les tests, on peut utiliser un portefeuille aléatoire
+        this.logger.warn('Aucune clé de portefeuille fournie, utilisation d\'un portefeuille aléatoire (mode local uniquement)');
+        signer = ethers.Wallet.createRandom().connect(this.provider);
+      }
+      
+      // Créer une instance de contrat avec le signataire
+      const contractWithSigner = this.contract.connect(signer) as unknown as OnchainRiddleContract;
+      
+      // Vérifier si le hash est au bon format (bytes32)
+      let formattedAnswerHash = answerHash;
+      if (!answerHash.startsWith('0x')) {
+        formattedAnswerHash = '0x' + answerHash;
+      }
+      
+      // S'assurer que la longueur est correcte pour bytes32
+      if (formattedAnswerHash.length !== 66) { // '0x' + 64 caractères
+        throw new Error('Le hash de la réponse doit être au format bytes32 (32 octets)');
+      }
+      
+      // Définir l'énigme dans le contrat
+      const tx = await contractWithSigner.setRiddle(riddle, formattedAnswerHash);
+      
+      // Attendre que la transaction soit minée
+      const receipt = await tx.wait();
+      
+      // Vérifier si la transaction a réussi
+      if (receipt && receipt.status === 1) {
+        this.logger.log(`Énigme définie avec succès: "${riddle}" avec le hash de réponse: ${formattedAnswerHash}`);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      this.logger.error('Erreur lors de la définition de l\'énigme dans le contrat:', error);
       return false;
     }
   }

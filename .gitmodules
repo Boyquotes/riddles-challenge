@@ -1,0 +1,3 @@
+[submodule "solidity-riddles"]
+	path = solidity-riddles
+	url = git@github.com:Boyquotes/solidity-riddles

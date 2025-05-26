@@ -79,16 +79,22 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
   };
 
   const submitAnswerToBlockchain = async () => {
+    console.log('FUNCTION CALLED: submitAnswerToBlockchain');
+    console.log('isConnected:', isConnected);
+    console.log('account:', account);
+    console.log('answer:', answer); 
     if (!isConnected || !account || !answer) return;
     
     setIsLoading(true);
     
     try {
+      console.log('Answer:', answer);
       // Get transaction data from backend
-      await prepareTransaction({ variables: { answer } });
-      
-      if (data?.prepareMetaMaskTransaction) {
-        const txData = data.prepareMetaMaskTransaction;
+      const result = await prepareTransaction({ variables: { answer } });
+      const txData = result.data?.prepareMetaMaskTransaction;
+      console.log('Transaction data:', txData);
+
+      if (txData) {
         
         // Check if we're on the right network (Sepolia)
         const chainId = await window.ethereum.request({ method: 'eth_chainId' });
@@ -222,8 +228,18 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
     }
   };
 
+  // Debug logs to check component state
+  console.log('MetaMaskButton Render State:', {
+    isOnchainRiddle,
+    isConnected,
+    account,
+    answer,
+    isLoading
+  });
+
   // Don't show the button if it's not an onchain riddle
   if (!isOnchainRiddle) {
+    console.log('Not rendering MetaMaskButton because it\'s not an onchain riddle');
     return null;
   }
 

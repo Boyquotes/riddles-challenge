@@ -127,7 +127,16 @@ let RedisService = class RedisService {
     }
     async createLocalDummyOnchainRiddle() {
         try {
-            await this.redisClient.hset('riddle:onchain', 'id', 'onchain', 'question', 'What has keys but no locks, space but no room, and you can enter but not go in?', 'answer', '0xe8d6f33c864d8c15cf8e3284db164ba343453a48937e23d2f191bd2297a9543f', 'solved', '0', 'onchain', '1', 'isActive', '1');
+            const riddleText = 'What has keys but no locks, space but no room, and you can enter but not go in?';
+            const answerHash = '0xe8d6f33c864d8c15cf8e3284db164ba343453a48937e23d2f191bd2297a9543f';
+            const success = await this.ethereumService.setRiddle(riddleText, answerHash, process.env.PRIVATE_KEY);
+            if (success) {
+                console.log('Énigme définie avec succès dans le contrat');
+            }
+            else {
+                console.warn('Impossible de définir l\'énigme dans le contrat, utilisation du mode local');
+            }
+            await this.redisClient.hset('riddle:onchain', 'id', 'onchain', 'question', riddleText, 'answer', answerHash, 'solved', '0', 'onchain', '1', 'isActive', '1');
             console.log('\u00c9nigme onchain factice créée pour le développement local');
         }
         catch (error) {

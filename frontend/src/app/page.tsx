@@ -16,6 +16,7 @@ export default function Home() {
   const [wrongAnswer, setWrongAnswer] = useState({ playerNumber: 0, answer: "", visible: false });
   const [duplicateAnswer, setDuplicateAnswer] = useState({ playerNumber: 0, answer: "", visible: false });
   const [blockchainError, setBlockchainError] = useState({ message: "", visible: false });
+  const [blockchainSuccess, setBlockchainSuccess] = useState({ message: "", visible: false });
   
   const { loading, error, data, subscribeToMore } = useQuery(GET_RANDOM_RIDDLE);
   const [checkAnswer] = useMutation(CHECK_ANSWER);
@@ -110,6 +111,21 @@ export default function Home() {
           setBlockchainError(prev => ({ ...prev, visible: false }));
         }, 7000);
       });
+      
+      // Listen for blockchain success notifications
+      socket.on('blockchainSuccessNotification', (data) => {
+        console.log('Blockchain success notification received:', data);
+        
+        setBlockchainSuccess({
+          message: data.message,
+          visible: true
+        });
+        
+        // Hide the blockchain success notification after 7 seconds
+        setTimeout(() => {
+          setBlockchainSuccess(prev => ({ ...prev, visible: false }));
+        }, 7000);
+      });
     }
     
     return () => {
@@ -121,6 +137,7 @@ export default function Home() {
         socket.off('wrongAnswer');
         socket.off('duplicateAnswer');
         socket.off('blockchainErrorNotification');
+        socket.off('blockchainSuccessNotification');
       }
     };
   }, []);
@@ -245,6 +262,12 @@ export default function Home() {
         {blockchainError.visible && (
           <div className="p-3 rounded-md text-center text-sm bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 mt-2 font-bold">
             Erreur Blockchain: {blockchainError.message}
+          </div>
+        )}
+        
+        {blockchainSuccess.visible && (
+          <div className="p-3 rounded-md text-center text-sm bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 mt-2 font-bold">
+            {blockchainSuccess.message}
           </div>
         )}
       </main>

@@ -31,6 +31,11 @@ export function getSocketClient() {
     socket.on('blockchainErrorNotification', (data) => {
       console.log('Blockchain error notification received in socket-client.ts:', data);
     });
+    
+    // Écouteur spécifique pour les succès blockchain
+    socket.on('blockchainSuccessNotification', (data) => {
+      console.log('Blockchain success notification received in socket-client.ts:', data);
+    });
   }
   return socket;
 }

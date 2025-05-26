@@ -22,9 +22,6 @@ let EthereumService = EthereumService_1 = class EthereumService {
         this.socketService = socketService;
         this.logger = new common_1.Logger(EthereumService_1.name);
         this.eventListeners = [];
-        setTimeout(() => {
-            this.testEmitBlockchainError();
-        }, 10000);
         try {
             const networkMode = process.env.NETWORK_MODE || 'testnet';
             this.logger.log(`Mode réseau: ${networkMode}`);
@@ -108,6 +105,14 @@ let EthereumService = EthereumService_1 = class EthereumService {
                         timestamp: new Date().toISOString(),
                         riddleId: 'onchain'
                     });
+                    if (correct === true) {
+                        this.logger.log('Réponse correcte détectée, envoi de notification de succès aux clients');
+                        this.socketService.emitBlockchainSuccess('Riddle solved!');
+                    }
+                    else {
+                        this.logger.log('Réponse incorrecte détectée, envoi de notification aux clients');
+                        this.socketService.emitBlockchainError('Énigme non résolue. La réponse soumise est incorrecte.');
+                    }
                 }
                 catch (error) {
                     this.logger.error(`Erreur lors du traitement de l'événement AnswerAttempt:`, error);
@@ -208,6 +213,8 @@ let EthereumService = EthereumService_1 = class EthereumService {
                 throw new Error(errorMsg);
             }
             const callData = this.contract.interface.encodeFunctionData('submitAnswer', [answer]);
+            console.log('callData', callData);
+            this.logger.log('callData', callData);
             return {
                 to: ethereum_constants_1.RIDDLE_CONTRACT_ADDRESS,
                 data: callData,
@@ -229,6 +236,10 @@ let EthereumService = EthereumService_1 = class EthereumService {
     async submitAnswer(answer, walletKey) {
         try {
             let signer;
+            console.log('walletKey', walletKey);
+            console.log('this.provider', this.provider);
+            console.log('this.contract', this.contract);
+            console.log('answer', answer);
             if (walletKey) {
                 signer = new ethers_1.ethers.Wallet(walletKey, this.provider);
             }
@@ -249,6 +260,37 @@ let EthereumService = EthereumService_1 = class EthereumService {
         }
         catch (error) {
             this.logger.error('Erreur lors de la soumission de la réponse au contrat:', error);
+            return false;
+        }
+    }
+    async setRiddle(riddle, answerHash, walletKey) {
+        try {
+            let signer;
+            if (walletKey) {
+                signer = new ethers_1.ethers.Wallet(walletKey, this.provider);
+            }
+            else {
+                this.logger.warn('Aucune clé de portefeuille fournie, utilisation d\'un portefeuille aléatoire (mode local uniquement)');
+                signer = ethers_1.ethers.Wallet.createRandom().connect(this.provider);
+            }
+            const contractWithSigner = this.contract.connect(signer);
+            let formattedAnswerHash = answerHash;
+            if (!answerHash.startsWith('0x')) {
+                formattedAnswerHash = '0x' + answerHash;
+            }
+            if (formattedAnswerHash.length !== 66) {
+                throw new Error('Le hash de la réponse doit être au format bytes32 (32 octets)');
+            }
+            const tx = await contractWithSigner.setRiddle(riddle, formattedAnswerHash);
+            const receipt = await tx.wait();
+            if (receipt && receipt.status === 1) {
+                this.logger.log(`Énigme définie avec succès: "${riddle}" avec le hash de réponse: ${formattedAnswerHash}`);
+                return true;
+            }
+            return false;
+        }
+        catch (error) {
+            this.logger.error('Erreur lors de la définition de l\'énigme dans le contrat:', error);
             return false;
         }
     }

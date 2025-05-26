@@ -22,6 +22,13 @@ let SocketService = class SocketService {
             this.socketServer.emit('blockchainErrorNotification', { error });
         }
     }
+    emitBlockchainSuccess(message) {
+        console.log('Emission du succès blockchain:', message);
+        if (this.socketServer) {
+            console.log('Socket server trouvé, émission du succès blockchain...');
+            this.socketServer.emit('blockchainSuccessNotification', { message });
+        }
+    }
 };
 exports.SocketService = SocketService;
 exports.SocketService = SocketService = __decorate([

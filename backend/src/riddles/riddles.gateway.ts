@@ -39,10 +39,10 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect,
       console.log(`Client connected to Socket.IO: ${socket.id}`);
       
       // Test d'émission d'un événement blockchain error pour déboguer
-      setTimeout(() => {
-        console.log(`Test d'émission d'un événement blockchainErrorNotification au client ${socket.id}`);
-        socket.emit('blockchainErrorNotification', { error: 'Test de notification d\'erreur blockchain' });
-      }, 5000);
+      // setTimeout(() => {
+      //   console.log(`Test d'émission d'un événement blockchainErrorNotification au client ${socket.id}`);
+      //   socket.emit('blockchainErrorNotification', { error: 'Test de notification d\'erreur blockchain' });
+      // }, 5000);
     });
   }
   

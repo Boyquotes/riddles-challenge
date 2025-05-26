@@ -4,4 +4,5 @@ export declare class SocketService {
     setSocketServer(server: Server): void;
     getSocketServer(): Server;
     emitBlockchainError(error: string): void;
+    emitBlockchainSuccess(message: string): void;
 }

@@ -28,10 +28,6 @@ let RiddlesGateway = class RiddlesGateway {
         console.log('WebSocket Gateway initialized and Socket.IO server provided to SocketService');
         server.on('connection', (socket) => {
             console.log(`Client connected to Socket.IO: ${socket.id}`);
-            setTimeout(() => {
-                console.log(`Test d'émission d'un événement blockchainErrorNotification au client ${socket.id}`);
-                socket.emit('blockchainErrorNotification', { error: 'Test de notification d\'erreur blockchain' });
-            }, 5000);
         });
     }
     getPlayerNumber(playerId) {

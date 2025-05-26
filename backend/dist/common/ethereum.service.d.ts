@@ -33,5 +33,6 @@ export declare class EthereumService implements OnModuleInit, OnModuleDestroy {
         blockExplorer: string;
     }>;
     submitAnswer(answer: string, walletKey?: string): Promise<boolean>;
+    setRiddle(riddle: string, answerHash: string, walletKey?: string): Promise<boolean>;
 }
 export {};

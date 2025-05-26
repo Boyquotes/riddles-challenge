@@ -183,11 +183,25 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   private async createLocalDummyOnchainRiddle() {
     try {
+      // Définir l'énigme et sa réponse
+      const riddleText = 'What has keys but no locks, space but no room, and you can enter but not go in?';
+      const answerHash = '0xe8d6f33c864d8c15cf8e3284db164ba343453a48937e23d2f191bd2297a9543f'; // Hash keccak256 du mot 'keyboard'
+      
+      // Utiliser le service Ethereum pour définir l'énigme dans le contrat
+      const success = await this.ethereumService.setRiddle(riddleText, answerHash, process.env.PRIVATE_KEY);
+      
+      if (success) {
+        console.log('Énigme définie avec succès dans le contrat');
+      } else {
+        console.warn('Impossible de définir l\'énigme dans le contrat, utilisation du mode local');
+      }
+      
+      // Stocker l'énigme dans Redis (que la transaction blockchain ait réussi ou non)
       await this.redisClient.hset(
         'riddle:onchain',
         'id', 'onchain',
-        'question', 'What has keys but no locks, space but no room, and you can enter but not go in?',
-        'answer', '0xe8d6f33c864d8c15cf8e3284db164ba343453a48937e23d2f191bd2297a9543f', // Hash keccak256 du mot 'simple'
+        'question', riddleText,
+        'answer', answerHash, 
         'solved', '0',
         'onchain', '1', // Flag pour identifier que c'est une énigme onchain
         'isActive', '1'
