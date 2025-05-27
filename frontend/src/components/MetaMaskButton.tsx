@@ -96,40 +96,56 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
 
       if (txData) {
         
-        // Check if we're on the right network (Sepolia)
+        // Forcer le changement de réseau en fonction du mode configuré
         const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-        if (parseInt(chainId, 16) !== txData.chainId) {
-          // Try to switch to Sepolia
+        const targetChainId = txData.chainId;
+        const targetChainIdHex = '0x' + targetChainId.toString(16);
+        
+        console.log(`Réseau actuel: ${parseInt(chainId, 16)}, Réseau cible: ${targetChainId}`);
+        
+        if (parseInt(chainId, 16) !== targetChainId) {
+          console.log(`Changement de réseau nécessaire vers ${txData.networkName}`);
+          
           try {
+            // Tentative de changement de réseau
             await window.ethereum.request({
               method: 'wallet_switchEthereumChain',
-              params: [{ chainId: '0x' + txData.chainId.toString(16) }],
+              params: [{ chainId: targetChainIdHex }],
             });
+            console.log(`Réseau changé avec succès vers ${txData.networkName}`);
           } catch (switchError: any) {
-            // This error code indicates that the chain has not been added to MetaMask
+            console.log('Erreur lors du changement de réseau:', switchError);
+            
+            // Code 4902: le réseau n'existe pas dans MetaMask et doit être ajouté
             if (switchError.code === 4902) {
+              console.log(`Tentative d'ajout du réseau ${txData.networkName}`);
               try {
                 await window.ethereum.request({
                   method: 'wallet_addEthereumChain',
                   params: [{
-                    chainId: '0x' + txData.chainId.toString(16),
-                    chainName: txData.networkName || 'Ethereum Network',
+                    chainId: targetChainIdHex,
+                    chainName: txData.networkName,
                     nativeCurrency: {
-                      name: txData.currencyName || 'ETH',
+                      name: txData.currencyName,
                       symbol: 'ETH',
                       decimals: 18
                     },
-                    rpcUrls: [txData.rpcUrl || 'http://127.0.0.1:8545/'],
-                    blockExplorerUrls: [txData.blockExplorer || '']
+                    rpcUrls: [txData.rpcUrl],
+                    blockExplorerUrls: txData.blockExplorer ? [txData.blockExplorer] : []
                   }],
                 });
+                console.log(`Réseau ${txData.networkName} ajouté avec succès`);
               } catch (addError) {
-                throw new Error('Failed to add Sepolia network to MetaMask');
+                console.error(`Échec de l'ajout du réseau ${txData.networkName}:`, addError);
+                throw new Error(`Impossible d'ajouter le réseau ${txData.networkName} à MetaMask`);
               }
             } else {
-              throw switchError;
+              console.error('Erreur non gérée lors du changement de réseau:', switchError);
+              throw new Error(`Impossible de changer vers le réseau ${txData.networkName}. Veuillez le faire manuellement.`);
             }
           }
+        } else {
+          console.log(`Déjà sur le bon réseau: ${txData.networkName}`);
         }
         
         // Send transaction
