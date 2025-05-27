@@ -67,7 +67,11 @@ export default function Home() {
         });
         setSolvedBy(data.solvedBy);
         
+        // Vider le champ de réponse lorsqu'une nouvelle énigme est chargée
+        setAnswer("");
+        
         console.log(`Updated riddle state: id=${data.id}, question="${data.question}", solvedBy=${data.solvedBy}`);
+        console.log('Champ de réponse vidé');
         
         setTimeout(() => {
           setSolvedBy("");
@@ -120,10 +124,10 @@ export default function Home() {
           visible: true
         });
         
-        // Hide the blockchain error notification after 7 seconds
+        // Hide the blockchain error notification after 4 seconds
         setTimeout(() => {
           setBlockchainError(prev => ({ ...prev, visible: false }));
-        }, 7000);
+        }, 4000);
       });
       
       // Listen for blockchain success notifications
@@ -135,10 +139,10 @@ export default function Home() {
           visible: true
         });
         
-        // Hide the blockchain success notification after 7 seconds
+        // Hide the blockchain success notification after 4 seconds
         setTimeout(() => {
           setBlockchainSuccess(prev => ({ ...prev, visible: false }));
-        }, 7000);
+        }, 4000);
       });
     }
     
@@ -277,46 +281,51 @@ export default function Home() {
           </div>
         </div>
         
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="answer" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Your Answer:
-            </label>
-            <input
-              type="text"
-              id="answer"
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-              placeholder="Type your answer here"
+        {/* Masquer le formulaire de réponse si le jeu est terminé */}
+        {riddle.id !== 'game_over' && (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="answer" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Your Answer:
+              </label>
+              <input
+                type="text"
+                id="answer"
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                placeholder="Type your answer here"
+              />
+            </div>
+            
+            {/* <button
+              type="submit"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
+            >
+              Submit Answer
+            </button> */}
+            
+            {/* MetaMask Button for onchain riddles */}
+            <MetaMaskButton 
+              riddleId={riddle.id} 
+              answer={answer}
+              onSuccess={(hideMessage) => {
+                if (hideMessage) {
+                  // Effacer le message après 2 secondes
+                  setMessage("");
+                } else {
+                  // Afficher le message de succès
+                  setMessage("Réponse soumise à la blockchain!");
+                  // Vider le champ de réponse
+                  setAnswer("");
+                  // Increment the riddle index for the next riddle
+                  setRiddleIndex((prevIndex) => (prevIndex + 1) % 5);
+                }
+              }} 
+              onError={(error) => setMessage(`Erreur: ${error}`)} 
             />
-          </div>
-          
-          {/* <button
-            type="submit"
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
-          >
-            Submit Answer
-          </button> */}
-          
-          {/* MetaMask Button for onchain riddles */}
-          <MetaMaskButton 
-            riddleId={riddle.id} 
-            answer={answer}
-            onSuccess={(hideMessage) => {
-              if (hideMessage) {
-                // Effacer le message après 2 secondes
-                setMessage("");
-              } else {
-                // Afficher le message de succès
-                setMessage("Réponse soumise à la blockchain!");
-                // Increment the riddle index for the next riddle
-                setRiddleIndex((prevIndex) => (prevIndex + 1) % 5);
-              }
-            }} 
-            onError={(error) => setMessage(`Erreur: ${error}`)} 
-          />
-        </form>
+          </form>
+        )}
         
         {/* Show ResetGameButton when all riddles are solved (game_over state) */}
         {riddle.id === 'game_over' && (
