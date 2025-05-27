@@ -12,6 +12,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.RedisService = void 0;
 const common_1 = require("@nestjs/common");
 const ioredis_1 = require("ioredis");
+const ethers_1 = require("ethers");
 const ethereum_service_1 = require("./ethereum.service");
 let RedisService = class RedisService {
     constructor(ethereumService) {
@@ -127,20 +128,45 @@ let RedisService = class RedisService {
     }
     async createLocalDummyOnchainRiddle() {
         try {
-            const riddleText = 'What has keys but no locks, space but no room, and you can enter but not go in?';
-            const answerHash = '0xe8d6f33c864d8c15cf8e3284db164ba343453a48937e23d2f191bd2297a9543f';
-            const success = await this.ethereumService.setRiddle(riddleText, answerHash, process.env.PRIVATE_KEY);
+            const riddles = [
+                {
+                    text: 'What has keys but no locks, space but no room, and you can enter but not go in?',
+                    answer: 'keyboard'
+                },
+                {
+                    text: 'I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?',
+                    answer: 'echo'
+                },
+                {
+                    text: 'The more you take, the more you leave behind. What am I?',
+                    answer: 'footsteps'
+                }
+            ];
+            console.log('Préparation de 3 énigmes pour l\'utilisation onchain');
+            const riddlesWithHash = riddles.map(riddle => {
+                const answerBytes = ethers_1.ethers.toUtf8Bytes(riddle.answer);
+                const answerHash = ethers_1.ethers.keccak256(answerBytes);
+                return Object.assign(Object.assign({}, riddle), { answerHash });
+            });
+            riddlesWithHash.forEach((riddle, index) => {
+                console.log(`\u00c9nigme ${index + 1}:`);
+                console.log(`- Question: ${riddle.text}`);
+                console.log(`- Réponse: ${riddle.answer}`);
+                console.log(`- Hash: ${riddle.answerHash}`);
+            });
+            const selectedRiddle = riddlesWithHash[0];
+            const success = await this.ethereumService.setRiddle(selectedRiddle.text, selectedRiddle.answerHash, process.env.PRIVATE_KEY);
             if (success) {
-                console.log('Énigme définie avec succès dans le contrat');
+                console.log(`\u00c9nigme "${selectedRiddle.text}" définie avec succès dans le contrat`);
             }
             else {
-                console.warn('Impossible de définir l\'énigme dans le contrat, utilisation du mode local');
+                console.warn('Impossible de définir l\'\u00e9nigme dans le contrat, utilisation du mode local');
             }
-            await this.redisClient.hset('riddle:onchain', 'id', 'onchain', 'question', riddleText, 'answer', answerHash, 'solved', '0', 'onchain', '1', 'isActive', '1');
-            console.log('\u00c9nigme onchain factice créée pour le développement local');
+            await this.redisClient.hset('riddle:onchain', 'id', 'onchain', 'question', selectedRiddle.text, 'answer', selectedRiddle.answerHash, 'solved', '0', 'onchain', '1', 'isActive', '1');
+            console.log('Énigme onchain factice créée pour le développement local');
         }
         catch (error) {
-            console.error('\u00c9chec lors de la création de l\'\u00e9nigme onchain factice:', error);
+            console.error('Échec lors de la création de l\'\u00e9nigme onchain factice:', error);
         }
     }
 };
