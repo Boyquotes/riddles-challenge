@@ -173,8 +173,8 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
             console.log('=== PLANIFICATION DE LA PROCHAINE ÉNIGME DANS 5 SECONDES ===');
             
             setTimeout(() => {
-              this.logger.log('Délai de 5 secondes écoulé, appel de setRandomRiddle...');
-              console.log('=== DÉLAI DE 5 SECONDES ÉCOULÉ, DÉFINITION DE LA NOUVELLE ÉNIGME ===');
+              this.logger.log('Délai de 2 secondes écoulé, appel de setRandomRiddle...');
+              console.log('=== DÉLAI DE 2 SECONDES ÉCOULÉ, DÉFINITION DE LA NOUVELLE ÉNIGME ===');
               
               // Émettre un événement pour que le service Riddles puisse définir la prochaine énigme
               this.eventEmitter.emit('riddle.setNext', { 
@@ -309,6 +309,41 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.logger.error('Erreur lors de la vérification de la réponse:', error);
       return false;
+    }
+  }
+  
+  /**
+   * Récupère l'énigme actuelle sur la blockchain
+   * @returns Un objet contenant l'ID et la question de l'énigme, ou null si aucune énigme n'est définie
+   */
+  async getCurrentRiddle(): Promise<{ id: string; question: string } | null> {
+    try {
+      this.logger.log('Récupération de l\'\u00e9nigme actuelle sur la blockchain...');
+      
+      // Vérifier si l'énigme est active
+      const isActive = await this.contract.isActive() as boolean;
+      if (!isActive) {
+        this.logger.log('Aucune énigme active sur la blockchain');
+        return null;
+      }
+      
+      // Récupérer la question de l'énigme
+      const riddleQuestion = await this.contract.riddle() as string;
+      if (!riddleQuestion || riddleQuestion.trim() === '') {
+        this.logger.log('L\'\u00e9nigme sur la blockchain est vide');
+        return null;
+      }
+      
+      this.logger.log(`Énigme actuelle sur la blockchain: "${riddleQuestion}"`);
+      
+      // Retourner l'énigme avec l'ID 'onchain'
+      return {
+        id: 'onchain',
+        question: riddleQuestion
+      };
+    } catch (error) {
+      this.logger.error('Erreur lors de la récupération de l\'\u00e9nigme sur la blockchain:', error);
+      return null;
     }
   }
   

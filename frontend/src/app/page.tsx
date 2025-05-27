@@ -32,7 +32,9 @@ export default function Home() {
     
     if (socket) {
       console.log('Socket.IO client initialized with ID:', socket.id);
-      setPlayerId(socket.id);
+      if (socket.id) {
+        setPlayerId(socket.id);
+      }
       
       // Add a connect event listener to debug connection issues
       socket.on('connect', () => {
@@ -258,22 +260,27 @@ export default function Home() {
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Riddle Game</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">{playerCount} player{playerCount !== 1 ? 's' : ''} online</p>
         </div>
-        
-        {solvedBy && (
-          <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 p-3 rounded-md text-center text-sm">
-            {solvedBy === playerId ? 'You solved the riddle!' : solvedBy === 'system' ? 'A new riddle has been set!' : 'Someone solved the riddle!'}
+
+        <div className="bg-white dark:bg-gray-800 shadow-lg rounded-lg p-6 mb-6">
+          <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">
+            {riddle.id === 'game_over' ? 'Game Over' : 'Riddle'}
+          </h2>
+          
+          {solvedBy && (
+            <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 p-3 rounded-md text-center text-sm">
+              {solvedBy === playerId ? 'You solved the riddle!' : solvedBy === 'system' ? 'A new riddle has been set!' : 'Someone solved the riddle!'}
+            </div>
+          )}
+          
+          {nextRiddleLoading && (
+            <div className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 p-3 rounded-md text-center text-sm mt-2 animate-pulse">
+              Nouvelle énigme dans {nextRiddleCountdown} seconde{nextRiddleCountdown !== 1 ? 's' : ''}...
+            </div>
+          )}
+          
+          <div className={`mt-4 ${riddle.id === 'game_over' ? 'text-yellow-600 dark:text-yellow-400 font-medium whitespace-pre-line' : 'text-gray-700 dark:text-gray-300'}`}>
+            {riddle.question}
           </div>
-        )}
-        
-        {nextRiddleLoading && (
-          <div className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 p-3 rounded-md text-center text-sm mt-2 animate-pulse">
-            Nouvelle énigme dans {nextRiddleCountdown} seconde{nextRiddleCountdown !== 1 ? 's' : ''}...
-          </div>
-        )}
-        
-        <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-lg">
-          <h2 className="font-medium text-gray-700 dark:text-gray-200 mb-2">Riddle:</h2>
-          <p className="text-gray-800 dark:text-white font-medium">{riddle.question}</p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">

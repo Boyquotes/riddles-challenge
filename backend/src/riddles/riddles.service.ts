@@ -13,6 +13,10 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 export class RiddlesService implements OnModuleInit {
   // Tableau pour suivre les indices des énigmes déjà utilisées
   private usedRiddleIndices: Set<number> = new Set();
+  
+  // Garder une trace de la dernière énigme proposée pour éviter les répétitions
+  private lastProposedRiddleIndex: number | null = null;
+  private currentOnchainRiddleIndex: number | null = null;
   private readonly logger = new Logger(RiddlesService.name);
   private availableRiddles: Array<{ text: string; answer: string }> = [
     { text: "What has keys but no locks, space but no room, and you can enter but not go in?", answer: "keyboard" },
@@ -29,21 +33,21 @@ export class RiddlesService implements OnModuleInit {
   
   // Riddles with precomputed keccak256 hashes for easy setting on the blockchain
   private riddlesWithHash: Array<{ text: string; answer: string; hash: string }> = [
-    { 
-      text: "What has keys but no locks, space but no room, and you can enter but not go in?", 
-      answer: "keyboard", 
-      hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("keyboard")).substring(2) 
-    },
+    // { 
+    //   text: "What has keys but no locks, space but no room, and you can enter but not go in?", 
+    //   answer: "keyboard", 
+    //   hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("keyboard")).substring(2) 
+    // },
     { 
       text: "I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?", 
       answer: "echo", 
       hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("echo")).substring(2) 
     },
-    { 
-      text: "The more you take, the more you leave behind. What am I?", 
-      answer: "footsteps", 
-      hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("footsteps")).substring(2) 
-    },
+    // { 
+    //   text: "The more you take, the more you leave behind. What am I?", 
+    //   answer: "footsteps", 
+    //   hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("footsteps")).substring(2) 
+    // },
     { 
       text: "What has a head, a tail, is brown, and has no legs?", 
       answer: "penny", 
@@ -67,12 +71,40 @@ export class RiddlesService implements OnModuleInit {
    * Initialisation du module
    * Configuration des écouteurs d'événements
    */
-  onModuleInit() {
+  async onModuleInit() {
     this.logger.log('Initialisation du service Riddles...');
     this.logger.log('Configuration des écouteurs d\'événements...');
     
     // Initialiser le suivi des énigmes utilisées
     this.usedRiddleIndices = new Set<number>();
+    this.lastProposedRiddleIndex = null;
+    this.currentOnchainRiddleIndex = null;
+    
+    // Récupérer l'énigme actuelle sur la blockchain pour éviter de la répéter
+    try {
+      const currentRiddle = await this.ethereumService.getCurrentRiddle();
+      if (currentRiddle && currentRiddle.question) {
+        this.logger.log(`Énigme actuelle sur la blockchain: "${currentRiddle.question}"`);
+        
+        // Trouver l'index de l'énigme actuelle dans notre tableau
+        const riddleIndex = this.riddlesWithHash.findIndex(r => r.text === currentRiddle.question);
+        if (riddleIndex !== -1) {
+          this.logger.log(`Index de l'énigme actuelle: ${riddleIndex}`);
+          this.currentOnchainRiddleIndex = riddleIndex;
+          this.lastProposedRiddleIndex = riddleIndex;
+          
+          // Ajouter également cet index aux énigmes utilisées
+          this.usedRiddleIndices.add(riddleIndex);
+        } else {
+          this.logger.warn(`L'énigme actuelle n'a pas été trouvée dans notre tableau d'énigmes`);
+        }
+      } else {
+        this.logger.log('Aucune énigme actuellement définie sur la blockchain');
+      }
+    } catch (error) {
+      this.logger.error('Erreur lors de la récupération de l\'\u00e9nigme actuelle:', error);
+    }
+    
     this.logger.log('Suivi des énigmes utilisées initialisé');
   }
   
@@ -113,8 +145,51 @@ export class RiddlesService implements OnModuleInit {
       
       // Vérifier si toutes les énigmes ont été utilisées
       if (this.usedRiddleIndices.size >= this.riddlesWithHash.length) {
-        console.log('Toutes les énigmes ont été utilisées, réinitialisation de la liste');
+        console.log('Toutes les énigmes ont été utilisées!');
+        
+        // Récupérer les statistiques des joueurs
+        const playerStats = await this.ethereumService.getPlayerStatistics();
+        
+        // Formater les statistiques pour l'affichage
+        let statsMessage = '';
+        if (Object.keys(playerStats).length > 0) {
+          statsMessage = Object.entries(playerStats)
+            .map(([address, wins]) => `${address}: ${wins} victoire${wins > 1 ? 's' : ''}`)
+            .join('\n');
+        } else {
+          statsMessage = 'Aucune statistique disponible';
+        }
+        
+        // Créer le message de game over
+        const gameOverMessage = `Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.\n\nStatistiques des joueurs:\n${statsMessage}`;
+        
+        console.log('=== GAME OVER ===');
+        console.log(gameOverMessage);
+        
+        // Notifier tous les clients connectés que le jeu est terminé
+        const gameOverRiddle = {
+          id: 'game_over',
+          question: gameOverMessage,
+          type: 'game_over'
+        };
+        
+        // Notifier via Socket.IO
+        this.socketService.emitNewRiddle(gameOverRiddle);
+        
+        // Notifier via GraphQL
+        this.pubSub.publish('riddleSolved', { 
+          riddleSolved: {
+            solvedBy: 'system',
+            newRiddle: gameOverRiddle,
+          }
+        });
+        
+        // Réinitialiser la liste des énigmes utilisées pour le prochain cycle
         this.usedRiddleIndices.clear();
+        console.log('Liste des énigmes utilisées réinitialisée pour le prochain cycle');
+        
+        // Retourner true pour indiquer que le traitement s'est bien déroulé
+        return true;
       }
       
       // Créer un tableau des indices d'énigmes non utilisées
@@ -134,8 +209,31 @@ export class RiddlesService implements OnModuleInit {
       }
       
       // Sélectionner un index aléatoire parmi les indices disponibles
-      const randomAvailableIndex = Math.floor(Math.random() * availableIndices.length);
-      const selectedIndex = availableIndices[randomAvailableIndex];
+      // Éviter de sélectionner la même énigme que celle actuellement sur la blockchain
+      // ou celle qui vient d'être proposée
+      let selectedIndex: number;
+      let attempts = 0;
+      const maxAttempts = availableIndices.length * 2; // Éviter les boucles infinies
+      
+      do {
+        const randomAvailableIndex = Math.floor(Math.random() * availableIndices.length);
+        selectedIndex = availableIndices[randomAvailableIndex];
+        attempts++;
+        
+        // Si nous avons essayé trop de fois ou s'il n'y a qu'une seule énigme disponible, accepter celle-ci
+        if (attempts >= maxAttempts || availableIndices.length <= 1) {
+          console.log(`Après ${attempts} tentatives, acceptation de l'index ${selectedIndex}`);
+          break;
+        }
+      } while (selectedIndex === this.lastProposedRiddleIndex || selectedIndex === this.currentOnchainRiddleIndex);
+      
+      console.log(`Index sélectionné après ${attempts} tentatives: ${selectedIndex}`);
+      console.log(`Dernière énigme proposée: ${this.lastProposedRiddleIndex}, Énigme actuelle: ${this.currentOnchainRiddleIndex}`);
+      
+      // Mettre à jour la dernière énigme proposée
+      this.lastProposedRiddleIndex = selectedIndex;
+      this.currentOnchainRiddleIndex = selectedIndex;
+      
       const selectedRiddle = this.riddlesWithHash[selectedIndex];
       
       // Ajouter l'index à la liste des indices utilisés
