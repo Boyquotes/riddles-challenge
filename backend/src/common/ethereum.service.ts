@@ -234,9 +234,10 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Récupère l'énigme depuis le contrat
+   * Récupère les données brutes de l'énigme depuis le contrat
+   * @deprecated Utiliser getRiddleWithRetry à la place pour une meilleure gestion des erreurs
    */
-  async getRiddle(): Promise<{ question: string; isActive: boolean; winner: string }> {
+  async getRiddleRaw(): Promise<{ question: string; isActive: boolean; winner: string }> {
     try {
       // Dans ethers.js v6, nous devons appeler les méthodes du contrat comme ceci
       const riddleText = await this.contract.riddle() as string;
@@ -313,6 +314,78 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
   }
   
   /**
+   * Récupère l'énigme actuelle sur la blockchain avec un mécanisme de timeout et de retry
+   * @returns Un objet contenant la question, si l'énigme est active et le gagnant
+   */
+  async getRiddleWithRetry(): Promise<{ question: string; isActive: boolean; winner: string }> {
+    const maxRetries = 3;
+    const timeoutMs = 5000; // 5 secondes de timeout par tentative
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        this.logger.log(`Récupération de l'énigme (tentative ${attempt}/${maxRetries})...`);
+        
+        // Créer une promesse avec timeout
+        const result = await Promise.race([
+          // Promesse 1: Récupération des données
+          (async () => {
+            // Vérifier si l'énigme est active
+            const isActive = await this.contract.isActive() as boolean;
+            
+            // Récupérer la question de l'énigme
+            const riddleQuestion = await this.contract.riddle() as string;
+            
+            // Récupérer l'adresse du gagnant (adresse zéro si pas de gagnant)
+            const winner = await this.contract.winner() as string;
+            
+            this.logger.log(`Énigme actuelle: "${riddleQuestion}", active: ${isActive}, gagnant: ${winner}`);
+            
+            return {
+              question: riddleQuestion || 'Chargement de l\'\u00e9nigme...',
+              isActive,
+              winner
+            };
+          })(),
+          
+          // Promesse 2: Timeout
+          new Promise<never>((_, reject) => {
+            setTimeout(() => {
+              reject(new Error(`Timeout après ${timeoutMs}ms lors de la tentative ${attempt}`));
+            }, timeoutMs);
+          })
+        ]);
+        
+        // Si on arrive ici, la récupération a réussi
+        return result as { question: string; isActive: boolean; winner: string };
+      } catch (error) {
+        lastError = error as Error;
+        this.logger.warn(`Erreur lors de la tentative ${attempt}: ${error.message}`);
+        
+        // Attendre un peu avant la prochaine tentative (backoff exponentiel)
+        if (attempt < maxRetries) {
+          const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          this.logger.log(`Attente de ${backoffMs}ms avant la prochaine tentative...`);
+          await new Promise(resolve => setTimeout(resolve, backoffMs));
+        }
+      }
+    }
+    
+    // Si toutes les tentatives ont échoué
+    this.logger.error(`Toutes les tentatives ont échoué après ${maxRetries} essais`);
+    if (lastError) {
+      this.logger.error(`Dernière erreur: ${lastError.message}`);
+    }
+    
+    // Retourner une réponse par défaut en cas d'échec
+    return {
+      question: 'Impossible de récupérer l\'\u00e9nigme. Veuillez réessayer plus tard.',
+      isActive: false,
+      winner: '0x0000000000000000000000000000000000000000'
+    };
+  }
+  
+  /**
    * Récupère l'énigme actuelle sur la blockchain
    * @returns Un objet contenant l'ID et la question de l'énigme, ou null si aucune énigme n'est définie
    */
@@ -320,26 +393,27 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
     try {
       this.logger.log('Récupération de l\'\u00e9nigme actuelle sur la blockchain...');
       
-      // Vérifier si l'énigme est active
-      const isActive = await this.contract.isActive() as boolean;
-      if (!isActive) {
+      // Utiliser la méthode getRiddleWithRetry avec retry et timeout
+      const riddleData = await this.getRiddleWithRetry();
+      
+      // Si l'énigme n'est pas active, retourner null
+      if (!riddleData.isActive) {
         this.logger.log('Aucune énigme active sur la blockchain');
         return null;
       }
       
-      // Récupérer la question de l'énigme
-      const riddleQuestion = await this.contract.riddle() as string;
-      if (!riddleQuestion || riddleQuestion.trim() === '') {
+      // Si la question est vide, retourner null
+      if (!riddleData.question || riddleData.question.trim() === '') {
         this.logger.log('L\'\u00e9nigme sur la blockchain est vide');
         return null;
       }
       
-      this.logger.log(`Énigme actuelle sur la blockchain: "${riddleQuestion}"`);
+      this.logger.log(`Énigme actuelle sur la blockchain: "${riddleData.question}"`);
       
       // Retourner l'énigme avec l'ID 'onchain'
       return {
         id: 'onchain',
-        question: riddleQuestion
+        question: riddleData.question
       };
     } catch (error) {
       this.logger.error('Erreur lors de la récupération de l\'\u00e9nigme sur la blockchain:', error);

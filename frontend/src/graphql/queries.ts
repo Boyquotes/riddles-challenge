@@ -6,6 +6,7 @@ export const GET_RANDOM_RIDDLE = gql`
       id
       question
       solved
+      onchain
     }
   }
 `;
@@ -44,8 +45,16 @@ export const RIDDLE_SOLVED_SUBSCRIPTION = gql`
       newRiddle {
         id
         question
+        solved
+        onchain
       }
     }
+  }
+`;
+
+export const SET_RANDOM_RIDDLE_ONCHAIN = gql`
+  mutation SetRandomRiddleOnchain {
+    setRandomRiddleOnchain
   }
 `;
 

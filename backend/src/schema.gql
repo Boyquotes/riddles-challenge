@@ -15,6 +15,7 @@ type MetaMaskTransaction {
 type Mutation {
   checkAnswer(answer: String!, id: String!, playerId: String!): Boolean!
   resetGame: Boolean!
+  setRandomRiddleOnchain: Boolean!
   setSpecificRiddleOnchain(index: Float!): Boolean!
 }
 

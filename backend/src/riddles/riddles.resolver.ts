@@ -26,7 +26,46 @@ export class RiddlesResolver {
 
   @Query(() => Riddle)
   async randomRiddle(): Promise<Riddle> {
-    return this.riddlesService.getRandomRiddle();
+    try {
+      // Ajouter un délai pour s'assurer que les opérations blockchain précédentes sont terminées
+      // Ce délai est particulièrement important après des opérations comme setRandomRiddleOnchain
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const riddle = await this.riddlesService.getRandomRiddle();
+      
+      // Vérifier que tous les champs requis sont présents
+      if (!riddle) {
+        console.log('Aucune énigme retournée par getRandomRiddle, retour d\'une énigme par défaut');
+        return {
+          id: 'error',
+          question: 'Impossible de récupérer l\'énigme. Veuillez rafraîchir la page.',
+          solved: false,
+          onchain: true
+        };
+      }
+      
+      // S'assurer que tous les champs sont définis et correctement typés
+      const safeRiddle = {
+        id: riddle.id || 'error',
+        question: riddle.question || 'Chargement de l\'énigme...',
+        solved: typeof riddle.solved === 'boolean' ? riddle.solved : false,
+        answer: riddle.answer,
+        onchain: typeof riddle.onchain === 'boolean' ? riddle.onchain : true
+      };
+      
+      console.log('Énigme retournée par le resolver randomRiddle:', JSON.stringify(safeRiddle, null, 2));
+      return safeRiddle;
+    } catch (error) {
+      console.error('Erreur dans le resolver randomRiddle:', error);
+      
+      // En cas d'erreur, retourner une énigme par défaut
+      return {
+        id: 'error',
+        question: 'Une erreur est survenue lors du chargement de l\'énigme. Veuillez réessayer.',
+        solved: false,
+        onchain: true
+      };
+    }
   }
 
   @Mutation(() => Boolean)
@@ -59,6 +98,26 @@ export class RiddlesResolver {
     return this.riddlesService.prepareMetaMaskTransaction(answer);
   }
   
+  @Mutation(() => Boolean)
+  async setRandomRiddleOnchain(): Promise<boolean> {
+    const success = await this.riddlesService.setRandomRiddleOnchain();
+    
+    if (success) {
+      // Récupérer la nouvelle énigme pour la publier via GraphQL subscription
+      const newRiddle = await this.riddlesService.getRiddle('onchain');
+      
+      // Publier l'événement pour les abonnés GraphQL
+      this.pubSub.publish('riddleSolved', { 
+        riddleSolved: {
+          solvedBy: 'system', // Indiquer que c'est le système qui a défini la nouvelle énigme
+          newRiddle,
+        }
+      });
+    }
+    
+    return success;
+  }
+
   @Mutation(() => Boolean)
   async setSpecificRiddleOnchain(
     @Args('index') index: number,

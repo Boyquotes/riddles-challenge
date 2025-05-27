@@ -170,7 +170,7 @@ export class RiddlesService implements OnModuleInit {
       
       // Vérifier si une énigme est déjà active sur la blockchain
       try {
-        const currentRiddleInfo = await this.ethereumService.getRiddle();
+        const currentRiddleInfo = await this.ethereumService.getRiddleWithRetry();
         
         // Vérifier si l'énigme est active et n'a pas encore de gagnant
         // L'adresse du gagnant est l'adresse zéro (0x000...000) quand il n'y a pas de gagnant
@@ -240,7 +240,9 @@ export class RiddlesService implements OnModuleInit {
         const gameOverRiddle = {
           id: 'game_over',
           question: gameOverMessage,
-          type: 'game_over'
+          type: 'game_over',
+          solved: true,
+          onchain: true
         };
         
         // Notifier via Socket.IO
@@ -339,7 +341,9 @@ export class RiddlesService implements OnModuleInit {
         const newRiddle = {
           id: 'onchain',
           question: selectedRiddle.text,
-          type: 'onchain'
+          type: 'onchain',
+          solved: false,
+          onchain: true
         };
         
         // Notifier tous les clients connectés de la nouvelle énigme
@@ -382,7 +386,7 @@ export class RiddlesService implements OnModuleInit {
     }
     
     try {
-      const onchainRiddleData = await this.ethereumService.getRiddle();
+      const onchainRiddleData = await this.ethereumService.getRiddleWithRetry();
       
       return {
         id: 'onchain',
@@ -404,22 +408,43 @@ export class RiddlesService implements OnModuleInit {
   }
 
   async getRandomRiddle(): Promise<Riddle> {
-    // Get the onchain riddle
-    const riddle = await this.getRiddle('onchain');
-    
-    // If the riddle is solved or doesn't exist, show game over with stats
-    if (!riddle || riddle.solved) {
-      const stats = await this.getGameOverStats();
+    try {
+      // Get the onchain riddle
+      const riddle = await this.getRiddle('onchain');
       
+      // If the riddle is solved or doesn't exist, show game over with stats
+      if (!riddle || riddle.solved) {
+        const stats = await this.getGameOverStats();
+        
+        return {
+          id: 'game_over',
+          question: `Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.\n\nStatistiques des joueurs:\n${stats.message}`,
+          solved: true,
+          answer: 'Merci d\'avoir joué !',
+          onchain: true
+        };
+      }
+      
+      // Assurons-nous que tous les champs requis sont présents
       return {
-        id: 'game_over',
-        question: `Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.\n\nStatistiques des joueurs:\n${stats.message}`,
-        solved: true,
-        answer: 'Merci d\'avoir joué !'
+        id: riddle.id || 'onchain',
+        question: riddle.question || 'Chargement de l\'\u00e9nigme...',
+        solved: typeof riddle.solved === 'boolean' ? riddle.solved : false,
+        answer: riddle.answer,
+        onchain: typeof riddle.onchain === 'boolean' ? riddle.onchain : true
+      };
+    } catch (error) {
+      this.logger.error('Erreur lors de la récupération de l\'\u00e9nigme aléatoire:', error);
+      
+      // En cas d'erreur, retourner une énigme par défaut
+      return {
+        id: 'error',
+        question: 'Une erreur est survenue lors du chargement de l\'\u00e9nigme. Veuillez réessayer.',
+        solved: false,
+        answer: undefined,
+        onchain: true
       };
     }
-    
-    return riddle;
   }
   
   /**
@@ -620,7 +645,9 @@ export class RiddlesService implements OnModuleInit {
                   newRiddle: {
                     id: 'onchain',
                     question: selectedRiddle.text,
-                    type: 'onchain'
+                    type: 'onchain',
+                    solved: false,
+                    onchain: true
                   },
                 }
               });

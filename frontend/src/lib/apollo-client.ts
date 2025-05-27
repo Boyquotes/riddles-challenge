@@ -1,6 +1,8 @@
-import { ApolloClient, InMemoryCache, HttpLink, split, NormalizedCacheObject } from '@apollo/client';
+import { ApolloClient, InMemoryCache, HttpLink, split, NormalizedCacheObject, from } from '@apollo/client';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
 import { getMainDefinition } from '@apollo/client/utilities';
+import { onError } from '@apollo/client/link/error';
+import { RetryLink } from '@apollo/client/link/retry';
 import { createClient } from 'graphql-ws';
 
 // This approach ensures the Apollo client is initialized only on the client side
@@ -11,6 +13,46 @@ function createApolloClient() {
   // Create an HTTP link for queries and mutations
   const httpLink = new HttpLink({
     uri: 'http://localhost:3001/graphql',
+  });
+
+  // Create a retry link with custom logic
+  const retryLink = new RetryLink({
+    delay: {
+      initial: 1000, // Initial delay in milliseconds
+      max: 5000,     // Maximum delay
+      jitter: true   // Randomize delay
+    },
+    attempts: {
+      max: 3,        // Max number of retries
+      retryIf: (error, operation) => {
+        // Only retry for specific operations or errors
+        const operationName = operation.operationName;
+        console.log(`Checking if should retry operation: ${operationName}`);
+        
+        // Always retry randomRiddle query
+        if (operationName === 'GetRandomRiddle') {
+          console.log('Will retry randomRiddle query...');
+          return true;
+        }
+        
+        return !!error; // Retry on any error for other operations
+      }
+    }
+  });
+
+  // Create an error handling link for logging
+  const errorLink = onError(({ graphQLErrors, networkError, operation }) => {
+    if (graphQLErrors) {
+      graphQLErrors.forEach(({ message, locations, path }) => {
+        console.error(
+          `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}, Operation: ${operation.operationName}`,
+        );
+      });
+    }
+
+    if (networkError) {
+      console.error(`[Network error]: ${networkError}`);
+    }
   });
 
   // Only create the WebSocket link on the client
@@ -25,7 +67,7 @@ function createApolloClient() {
     : null;
 
   // Use split to route the operations to the correct link
-  const link = typeof window !== 'undefined' && wsLink != null
+  const splitLink = typeof window !== 'undefined' && wsLink != null
     ? split(
         ({ query }) => {
           const definition = getMainDefinition(query);
@@ -39,17 +81,39 @@ function createApolloClient() {
       )
     : httpLink;
 
+  // Combine all links - retry first, then error handling, then route to HTTP/WS
+  const link = from([retryLink, errorLink, splitLink]);
+
   return new ApolloClient({
     ssrMode: typeof window === 'undefined', // Set to true for SSR
     link,
-    cache: new InMemoryCache(),
+    cache: new InMemoryCache({
+      typePolicies: {
+        Riddle: {
+          fields: {
+            // Définir des valeurs par défaut pour les champs qui pourraient être manquants
+            solved: {
+              read(solved = false) {
+                return solved;
+              }
+            },
+            onchain: {
+              read(onchain = true) {
+                return onchain;
+              }
+            }
+          }
+        }
+      }
+    }),
     defaultOptions: {
       watchQuery: {
-        fetchPolicy: 'no-cache',
-        errorPolicy: 'ignore',
+        fetchPolicy: 'network-only', // Ne pas utiliser le cache pour les requêtes
+        errorPolicy: 'all',
+        notifyOnNetworkStatusChange: true,
       },
       query: {
-        fetchPolicy: 'no-cache',
+        fetchPolicy: 'network-only',
         errorPolicy: 'all',
       },
     },
