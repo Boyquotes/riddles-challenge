@@ -2,8 +2,11 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
+// Mode de l'environnement (local ou testnet)
+export const NETWORK_MODE = process.env.NETWORK_MODE || 'testnet'; // 'local' ou 'testnet'
+
 // Adresse du contrat - peut être remplacée par une variable d'environnement
-export const RIDDLE_CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS || '0xA6FDC30159443F08a76dcAc0469A7d6B0dE878d2';
+export const RIDDLE_CONTRACT_ADDRESS = NETWORK_MODE === 'local' ? process.env.CONTRACT_ADDRESS : process.env.CONTRACT_ADDRESS_SEPOLIA;
 console.log("RIDDLE_CONTRACT_ADDRESS", RIDDLE_CONTRACT_ADDRESS);
 export const RIDDLE_CONTRACT_ABI = [
   {
@@ -141,12 +144,11 @@ export const RIDDLE_CONTRACT_ABI = [
   }
 ];
 
-// Mode de l'environnement (local ou testnet)
-export const NETWORK_MODE = process.env.NETWORK_MODE || 'testnet'; // 'local' ou 'testnet'
+
 // RPC URL actif en fonction du mode
 export const ACTIVE_RPC_URL = NETWORK_MODE === 'local' ? process.env.HARDHAT_RPC_URL : process.env.SEPOLIA_RPC_URL;
 // ChainId actif en fonction du mode
-export const ACTIVE_CHAIN_ID = NETWORK_MODE === 'local' ? Number(process.env.HARDHAT_CHAIN_ID) : Number(process.env.SEPOLIA_CHAIN_ID);
+export const ACTIVE_CHAIN_ID = NETWORK_MODE === 'local' ? Number(process.env.HARDHAT_CHAIN_ID) : Number(process.env.ACTIVE_CHAIN_ID);
 // Nom du réseau actif
 export const ACTIVE_NETWORK_NAME = NETWORK_MODE === 'local' ? 'Hardhat Local' : 'Sepolia Test Network';
 // Nom de la devise

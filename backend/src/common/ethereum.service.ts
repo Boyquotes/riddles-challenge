@@ -315,37 +315,76 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
   
   /**
    * Récupère l'énigme actuelle sur la blockchain avec un mécanisme de timeout et de retry
+   * Gère spécifiquement les erreurs "Too Many Requests" d'Infura
    * @returns Un objet contenant la question, si l'énigme est active et le gagnant
    */
   async getRiddleWithRetry(): Promise<{ question: string; isActive: boolean; winner: string }> {
-    const maxRetries = 3;
-    const timeoutMs = 5000; // 5 secondes de timeout par tentative
+    const maxRetries = 2; // Augmenté pour gérer les erreurs d'Infura
+    const initialTimeoutMs = 5000; // 5 secondes de timeout initial
     let lastError: Error | null = null;
+    let cachedRiddle: { question: string; isActive: boolean; winner: string } | null = null;
+    
+    // Vérifier si nous avons une énigme en cache
+    try {
+      // Tenter de récupérer depuis le cache local (variable statique)
+      if (this.constructor['_cachedRiddle']) {
+        const cache = this.constructor['_cachedRiddle'];
+        const cacheTime = this.constructor['_cachedRiddleTime'] || 0;
+        const now = Date.now();
+        
+        // Si le cache est récent (moins de 5 secondes), l'utiliser
+        if (now - cacheTime < 5000) {
+          this.logger.log('Utilisation de l\'énigme en cache (moins de 30 secondes)');
+          return cache;
+        }
+      }
+    } catch (cacheError) {
+      this.logger.warn('Erreur lors de la vérification du cache:', cacheError);
+    }
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         this.logger.log(`Récupération de l'énigme (tentative ${attempt}/${maxRetries})...`);
         
+        // Augmenter le timeout en fonction du nombre de tentatives
+        const timeoutMs = initialTimeoutMs * Math.pow(1.5, attempt - 1);
+        
         // Créer une promesse avec timeout
         const result = await Promise.race([
           // Promesse 1: Récupération des données
           (async () => {
-            // Vérifier si l'énigme est active
-            const isActive = await this.contract.isActive() as boolean;
-            
-            // Récupérer la question de l'énigme
-            const riddleQuestion = await this.contract.riddle() as string;
-            
-            // Récupérer l'adresse du gagnant (adresse zéro si pas de gagnant)
-            const winner = await this.contract.winner() as string;
-            
-            this.logger.log(`Énigme actuelle: "${riddleQuestion}", active: ${isActive}, gagnant: ${winner}`);
-            
-            return {
-              question: riddleQuestion || 'Chargement de l\'\u00e9nigme...',
-              isActive,
-              winner
-            };
+            try {
+              // Vérifier si l'énigme est active
+              const isActive = await this.contract.isActive() as boolean;
+              
+              // Récupérer la question de l'énigme
+              const riddleQuestion = await this.contract.riddle() as string;
+              
+              // Récupérer l'adresse du gagnant (adresse zéro si pas de gagnant)
+              const winner = await this.contract.winner() as string;
+              
+              this.logger.log(`Énigme actuelle: "${riddleQuestion}", active: ${isActive}, gagnant: ${winner}`);
+              
+              return {
+                question: riddleQuestion || 'Chargement de l\'\u00e9nigme...',
+                isActive,
+                winner
+              };
+            } catch (contractError: any) {
+              // Vérifier si c'est une erreur Infura "Too Many Requests"
+              if (contractError.message && contractError.message.includes('Too Many Requests')) {
+                this.logger.warn('Erreur Infura - Too Many Requests');
+                
+                // Si nous avons un cache, l'utiliser même s'il est ancien
+                if (this.constructor['_cachedRiddle']) {
+                  this.logger.log('Utilisation du cache en raison des limites d\'Infura');
+                  return this.constructor['_cachedRiddle'];
+                }
+              }
+              
+              // Propager l'erreur pour qu'elle soit gérée par le catch externe
+              throw contractError;
+            }
           })(),
           
           // Promesse 2: Timeout
@@ -357,16 +396,38 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
         ]);
         
         // Si on arrive ici, la récupération a réussi
-        return result as { question: string; isActive: boolean; winner: string };
-      } catch (error) {
-        lastError = error as Error;
-        this.logger.warn(`Erreur lors de la tentative ${attempt}: ${error.message}`);
+        // Mettre en cache le résultat
+        this.constructor['_cachedRiddle'] = result;
+        this.constructor['_cachedRiddleTime'] = Date.now();
         
-        // Attendre un peu avant la prochaine tentative (backoff exponentiel)
-        if (attempt < maxRetries) {
-          const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-          this.logger.log(`Attente de ${backoffMs}ms avant la prochaine tentative...`);
-          await new Promise(resolve => setTimeout(resolve, backoffMs));
+        return result as { question: string; isActive: boolean; winner: string };
+      } catch (error: any) {
+        lastError = error;
+        
+        // Vérifier si c'est une erreur Infura "Too Many Requests"
+        const isInfuraRateLimit = error.message && 
+          (error.message.includes('Too Many Requests') || 
+           (error.error && error.error.message && error.error.message.includes('Too Many Requests')));
+        
+        if (isInfuraRateLimit) {
+          this.logger.warn(`Limite de requêtes Infura atteinte (tentative ${attempt})`);
+          this.socketService.emitBlockchainError('Limite de requêtes Infura atteinte. Veuillez réessayer plus tard.');
+          
+          // Backoff plus agressif pour les erreurs de limite de taux
+          if (attempt < maxRetries) {
+            const backoffMs = Math.min(2000 * Math.pow(3, attempt - 1), 30000);
+            this.logger.log(`Attente de ${backoffMs}ms avant la prochaine tentative (limite Infura)...`);
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+          }
+        } else {
+          this.logger.warn(`Erreur lors de la tentative ${attempt}: ${error.message}`);
+          
+          // Backoff standard pour les autres erreurs
+          if (attempt < maxRetries) {
+            const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+            this.logger.log(`Attente de ${backoffMs}ms avant la prochaine tentative...`);
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+          }
         }
       }
     }
@@ -375,14 +436,28 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
     this.logger.error(`Toutes les tentatives ont échoué après ${maxRetries} essais`);
     if (lastError) {
       this.logger.error(`Dernière erreur: ${lastError.message}`);
+      
+      // Si c'est une erreur de limite de taux Infura, notifier l'utilisateur
+      if (lastError.message && lastError.message.includes('Too Many Requests')) {
+        this.socketService.emitBlockchainError(
+          'Le service blockchain (Infura) a atteint sa limite de requêtes. Veuillez réessayer dans quelques minutes.'
+        );
+      }
+    }
+    
+    // Utiliser le cache même s'il est ancien en cas d'échec complet
+    if (this.constructor['_cachedRiddle']) {
+      this.logger.log('Utilisation du cache ancien après échec de toutes les tentatives');
+      return this.constructor['_cachedRiddle'];
     }
     
     // Retourner une réponse par défaut en cas d'échec
-    return {
-      question: 'Impossible de récupérer l\'\u00e9nigme. Veuillez réessayer plus tard.',
+    const defaultResponse = {
+      question: 'Impossible de récupérer l\'énigme. Veuillez réessayer plus tard.',
       isActive: false,
       winner: '0x0000000000000000000000000000000000000000'
     };
+    return defaultResponse;
   }
   
   /**
@@ -539,9 +614,9 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
       
       // Vérifier le mode réseau et les paramètres de configuration
       const networkMode = process.env.NETWORK_MODE || 'testnet';
-      const contractAddress = process.env.CONTRACT_ADDRESS || 'non défini';
-      const chainId = process.env.ACTIVE_CHAIN_ID || 'non défini';
-      const rpcUrl = process.env.ACTIVE_RPC_URL || 'non défini';
+      const contractAddress = RIDDLE_CONTRACT_ADDRESS || 'non défini';
+      const chainId = ACTIVE_CHAIN_ID || 'non défini';
+      const rpcUrl = ACTIVE_RPC_URL || 'non défini';
       
       console.log('=== CONFIGURATION RÉSEAU ===');
       console.log(`Mode réseau: ${networkMode}`);
