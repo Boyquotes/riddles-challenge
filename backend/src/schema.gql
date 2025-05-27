@@ -14,6 +14,8 @@ type MetaMaskTransaction {
 
 type Mutation {
   checkAnswer(answer: String!, id: String!, playerId: String!): Boolean!
+  resetGame: Boolean!
+  setSpecificRiddleOnchain(index: Float!): Boolean!
 }
 
 type Query {
@@ -26,6 +28,7 @@ type Query {
 type Riddle {
   answer: String
   id: ID!
+  onchain: Boolean
   question: String!
   solved: Boolean!
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Server } from 'socket.io';
+import { Riddle } from '../riddles/models/riddle.model';
 
 @Injectable()
 export class SocketService {
@@ -34,6 +35,22 @@ export class SocketService {
     if (this.socketServer) {
       console.log('Socket server trouvé, émission du succès blockchain...');
       this.socketServer.emit('blockchainSuccessNotification', { message });
+    }
+  }
+  
+  /**
+   * Émet un événement de nouvelle énigme à tous les clients connectés
+   * @param riddle L'énigme à envoyer aux clients
+   */
+  emitNewRiddle(riddle: { id: string; question: string }) {
+    console.log('Emission d\'une nouvelle énigme:', riddle.question);
+    if (this.socketServer) {
+      console.log('Socket server trouvé, émission de la nouvelle énigme...');
+      this.socketServer.emit('newRiddle', {
+        id: riddle.id,
+        question: riddle.question,
+        solvedBy: 'system' // Indiquer que c'est le système qui a défini la nouvelle énigme
+      });
     }
   }
 }

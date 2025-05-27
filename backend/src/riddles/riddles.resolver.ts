@@ -38,11 +38,13 @@ export class RiddlesResolver {
     const isCorrect = await this.riddlesService.checkAnswer(id, answer);
     
     if (isCorrect) {
-      const newRiddle = await this.riddlesService.getRandomRiddle();
+      // Publier immédiatement l'événement de résolution avec la réponse actuelle
+      // La nouvelle énigme sera définie automatiquement après un délai par le service
+      const currentRiddle = await this.riddlesService.getRiddle(id);
       this.pubSub.publish('riddleSolved', { 
         riddleSolved: {
           solvedBy: playerId,
-          newRiddle,
+          newRiddle: currentRiddle,
         }
       });
     }
@@ -55,6 +57,48 @@ export class RiddlesResolver {
     @Args('answer') answer: string,
   ): Promise<MetaMaskTransaction> {
     return this.riddlesService.prepareMetaMaskTransaction(answer);
+  }
+  
+  @Mutation(() => Boolean)
+  async setSpecificRiddleOnchain(
+    @Args('index') index: number,
+  ): Promise<boolean> {
+    const success = await this.riddlesService.setSpecificRiddleOnchain(index);
+    
+    if (success) {
+      // Récupérer la nouvelle énigme pour la publier via GraphQL subscription
+      const newRiddle = await this.riddlesService.getRiddle('onchain');
+      
+      // Publier l'événement pour les abonnés GraphQL
+      this.pubSub.publish('riddleSolved', { 
+        riddleSolved: {
+          solvedBy: 'system', // Indiquer que c'est le système qui a défini la nouvelle énigme
+          newRiddle,
+        }
+      });
+    }
+    
+    return success;
+  }
+  
+  @Mutation(() => Boolean)
+  async resetGame(): Promise<boolean> {
+    const success = await this.riddlesService.resetGame();
+    
+    if (success) {
+      // Récupérer la nouvelle énigme pour la publier via GraphQL subscription
+      const newRiddle = await this.riddlesService.getRiddle('onchain');
+      
+      // Publier l'événement pour les abonnés GraphQL
+      this.pubSub.publish('riddleSolved', { 
+        riddleSolved: {
+          solvedBy: 'system', // Indiquer que c'est le système qui a réinitialisé le jeu
+          newRiddle,
+        }
+      });
+    }
+    
+    return success;
   }
 
   @Subscription(() => RiddleSolvedResponse, {

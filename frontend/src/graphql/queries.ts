@@ -48,3 +48,15 @@ export const RIDDLE_SOLVED_SUBSCRIPTION = gql`
     }
   }
 `;
+
+export const SET_SPECIFIC_RIDDLE_ONCHAIN = gql`
+  mutation SetSpecificRiddleOnchain($index: Float!) {
+    setSpecificRiddleOnchain(index: $index)
+  }
+`;
+
+export const RESET_GAME = gql`
+  mutation ResetGame {
+    resetGame
+  }
+`;

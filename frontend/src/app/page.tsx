@@ -5,6 +5,8 @@ import { useQuery, useMutation } from "@apollo/client";
 import { GET_RANDOM_RIDDLE, CHECK_ANSWER, RIDDLE_SOLVED_SUBSCRIPTION } from "@/graphql/queries";
 import { getSocketClient } from "@/lib/socket-client";
 import MetaMaskButton from "@/components/MetaMaskButton";
+import SetNewRiddleButton from "@/components/SetNewRiddleButton";
+import ResetGameButton from "@/components/ResetGameButton";
 
 export default function Home() {
   const [riddle, setRiddle] = useState({ id: "", question: "Loading riddle..." });
@@ -17,6 +19,10 @@ export default function Home() {
   const [duplicateAnswer, setDuplicateAnswer] = useState({ playerNumber: 0, answer: "", visible: false });
   const [blockchainError, setBlockchainError] = useState({ message: "", visible: false });
   const [blockchainSuccess, setBlockchainSuccess] = useState({ message: "", visible: false });
+  const [riddleSolved, setRiddleSolved] = useState(false);
+  const [riddleIndex, setRiddleIndex] = useState(0);
+  const [nextRiddleLoading, setNextRiddleLoading] = useState(false);
+  const [nextRiddleCountdown, setNextRiddleCountdown] = useState(0);
   
   const { loading, error, data, subscribeToMore } = useQuery(GET_RANDOM_RIDDLE);
   const [checkAnswer] = useMutation(CHECK_ANSWER);
@@ -30,7 +36,7 @@ export default function Home() {
       
       // Add a connect event listener to debug connection issues
       socket.on('connect', () => {
-        console.log('Socket.IO connected with ID:', socket.id);
+        console.log('Connected to server');
       });
       
       // Add a disconnect event listener
@@ -44,17 +50,25 @@ export default function Home() {
       });
       
       socket.on('currentRiddle', (data: { id: string; question: string }) => {
+        console.log(`Received currentRiddle event:`, data);
         setRiddle(data);
       });
       
       socket.on('playerCount', (count) => {
+        console.log(`Received playerCount event: ${count} players`);
         setPlayerCount(count);
       });
       
       socket.on('newRiddle', (data) => {
-        setRiddle({ id: data.id, question: data.question });
+        console.log(`Received newRiddle event via Socket.IO:`, data);
+        setRiddle({
+          id: data.id,
+          question: data.question
+        });
         setSolvedBy(data.solvedBy);
-        setAnswer("");
+        setRiddleSolved(false);
+        
+        console.log(`Updated riddle state: id=${data.id}, question="${data.question}", solvedBy=${data.solvedBy}`);
         
         setTimeout(() => {
           setSolvedBy("");
@@ -62,6 +76,7 @@ export default function Home() {
       });
       
       socket.on('answerResponse', (response) => {
+        console.log(`Received answerResponse event:`, response);
         setMessage(response.message);
         
         setTimeout(() => {
@@ -152,18 +167,63 @@ export default function Home() {
   }, [data]);
   
   useEffect(() => {
+    console.log('Initialisation de la souscription GraphQL pour RIDDLE_SOLVED_SUBSCRIPTION');
     const unsubscribe = subscribeToMore({
       document: RIDDLE_SOLVED_SUBSCRIPTION,
       updateQuery: (prev, { subscriptionData }) => {
-        if (!subscriptionData.data) return prev;
+        console.log('Événement de souscription GraphQL reçu:', subscriptionData);
+        
+        if (!subscriptionData.data) {
+          console.log('Aucune donnée dans la souscription');
+          return prev;
+        }
         
         const { solvedBy, newRiddle } = subscriptionData.data.riddleSolved;
+        console.log(`Énigme résolue par: ${solvedBy}`);
+        console.log(`Nouvelle énigme:`, newRiddle);
         
         setSolvedBy(solvedBy);
         setRiddle({
           id: newRiddle.id,
           question: newRiddle.question
         });
+        console.log(`État de l'énigme mis à jour: id=${newRiddle.id}, question="${newRiddle.question}"`);
+        
+        // Si l'énigme a été résolue par un joueur (pas par le système)
+        if (solvedBy !== 'system') {
+          console.log('Énigme résolue par un joueur, affichage du compte à rebours pour la prochaine énigme');
+          // Afficher le message indiquant qu'une nouvelle énigme sera bientôt disponible
+          setNextRiddleLoading(true);
+          setNextRiddleCountdown(4);
+          
+          // Démarrer le compte à rebours
+          const countdownInterval = setInterval(() => {
+            setNextRiddleCountdown(prev => {
+              if (prev <= 1) {
+                console.log('Compte à rebours terminé');
+                clearInterval(countdownInterval);
+                return 0;
+              }
+              return prev - 1;
+            });
+          }, 1000);
+          console.log('Compte à rebours démarré');
+          
+          // Après 4 secondes, réinitialiser l'état
+          setTimeout(() => {
+            console.log('Délai de 4 secondes écoulé, réinitialisation de l\'état');
+            setNextRiddleLoading(false);
+            clearInterval(countdownInterval);
+          }, 4000);
+        } else {
+          console.log('Énigme définie par le système, pas de compte à rebours nécessaire');
+        }
+        
+        // Set riddleSolved to true to show the SetNewRiddleButton
+        setRiddleSolved(true);
+        
+        // Increment the riddle index for the next riddle (cycling through available riddles)
+        setRiddleIndex((prevIndex) => (prevIndex + 1) % 5);
         
         setTimeout(() => {
           setSolvedBy("");
@@ -201,7 +261,13 @@ export default function Home() {
         
         {solvedBy && (
           <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 p-3 rounded-md text-center text-sm">
-            {solvedBy === playerId ? 'You solved the riddle!' : 'Someone solved the riddle!'}
+            {solvedBy === playerId ? 'You solved the riddle!' : solvedBy === 'system' ? 'A new riddle has been set!' : 'Someone solved the riddle!'}
+          </div>
+        )}
+        
+        {nextRiddleLoading && (
+          <div className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 p-3 rounded-md text-center text-sm mt-2 animate-pulse">
+            Nouvelle énigme dans {nextRiddleCountdown} seconde{nextRiddleCountdown !== 1 ? 's' : ''}...
           </div>
         )}
         
@@ -225,21 +291,49 @@ export default function Home() {
             />
           </div>
           
-          <button
+          {/* <button
             type="submit"
             className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors"
           >
             Submit Answer
-          </button>
+          </button> */}
           
           {/* MetaMask Button for onchain riddles */}
           <MetaMaskButton 
             riddleId={riddle.id} 
             answer={answer}
-            onSuccess={() => setMessage("Réponse soumise à la blockchain!")} 
+            onSuccess={() => {
+              setMessage("Réponse soumise à la blockchain!");
+              // Set riddleSolved to true when a riddle is solved via MetaMask
+              setRiddleSolved(true);
+              // Increment the riddle index for the next riddle
+              setRiddleIndex((prevIndex) => (prevIndex + 1) % 5);
+            }} 
             onError={(error) => setMessage(`Erreur: ${error}`)} 
           />
         </form>
+        
+        {/* Show SetNewRiddleButton when a riddle is solved */}
+        {riddleSolved && (
+          <SetNewRiddleButton 
+            riddleIndex={riddleIndex}
+            onSuccess={() => {
+              setMessage("Nouvelle énigme définie avec succès sur la blockchain!");
+              setRiddleSolved(false);
+            }}
+            onError={(error) => setMessage(`Erreur: ${error}`)}
+          />
+        )}
+        
+        {/* Show ResetGameButton when all riddles are solved (game_over state) */}
+        {riddle.id === 'game_over' && (
+          <ResetGameButton 
+            onSuccess={() => {
+              setMessage("Le jeu a été réinitialisé avec succès!");
+            }}
+            onError={(error) => setMessage(`Erreur: ${error}`)}
+          />
+        )}
         
         {message && (
           <div className={`p-3 rounded-md text-center text-sm ${message.includes('Correct') ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
@@ -273,10 +367,10 @@ export default function Home() {
       </main>
       
       <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-        <p>Riddle Game - Real-time multiplayer with WebSockets and GraphQL</p>
+        <p>Riddle Game - Real-time on-chain multiplayer</p>
         
         {/* Test button for debugging - only visible in development */}
-        <button 
+        {/* <button 
           onClick={() => {
             setBlockchainError({
               message: "[Test] Tentative de préparation d'une transaction pour une énigme inactive",
@@ -288,7 +382,7 @@ export default function Home() {
           }}
           className="mt-4 px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs rounded">
           Test Blockchain Error
-        </button>
+        </button> */}
       </footer>
     </div>
   );

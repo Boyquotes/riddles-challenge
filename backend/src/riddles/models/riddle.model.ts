@@ -13,4 +13,7 @@ export class Riddle {
 
   @Field(() => Boolean)
   solved: boolean;
+  
+  @Field(() => Boolean, { nullable: true })
+  onchain?: boolean;
 }

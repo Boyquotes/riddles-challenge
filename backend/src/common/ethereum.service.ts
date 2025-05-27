@@ -167,6 +167,21 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
           if (correct === true) {
             this.logger.log('Réponse correcte détectée, envoi de notification de succès aux clients');
             this.socketService.emitBlockchainSuccess('Riddle solved!');
+            
+            // Planifier la définition de la prochaine énigme après 5 secondes
+            this.logger.log('Planification de la définition de la prochaine énigme dans 5 secondes...');
+            console.log('=== PLANIFICATION DE LA PROCHAINE ÉNIGME DANS 5 SECONDES ===');
+            
+            setTimeout(() => {
+              this.logger.log('Délai de 5 secondes écoulé, appel de setRandomRiddle...');
+              console.log('=== DÉLAI DE 5 SECONDES ÉCOULÉ, DÉFINITION DE LA NOUVELLE ÉNIGME ===');
+              
+              // Émettre un événement pour que le service Riddles puisse définir la prochaine énigme
+              this.eventEmitter.emit('riddle.setNext', { 
+                timestamp: new Date().toISOString(),
+                source: 'answerAttemptListener'
+              });
+            }, 2000); // 2 secondes de délai
           } else {
             this.logger.log('Réponse incorrecte détectée, envoi de notification aux clients');
             this.socketService.emitBlockchainError('Énigme non résolue. La réponse soumise est incorrecte.');
@@ -408,46 +423,107 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
    */
   async setRiddle(riddle: string, answerHash: string, walletKey?: string): Promise<boolean> {
     try {
+      console.log('=== DÉBUT DE LA MÉTHODE setRiddle ===');
+      console.log(`Tentative de définition de l'énigme: "${riddle}"`);
+      console.log(`Hash de réponse fourni: ${answerHash}`);
+      console.log(`Clé privée fournie: ${walletKey ? 'Oui (masquée)' : 'Non'}`);
+      
+      // Vérifier le mode réseau et les paramètres de configuration
+      const networkMode = process.env.NETWORK_MODE || 'testnet';
+      const contractAddress = process.env.CONTRACT_ADDRESS || 'non défini';
+      const chainId = process.env.ACTIVE_CHAIN_ID || 'non défini';
+      const rpcUrl = process.env.ACTIVE_RPC_URL || 'non défini';
+      
+      console.log('=== CONFIGURATION RÉSEAU ===');
+      console.log(`Mode réseau: ${networkMode}`);
+      console.log(`Adresse du contrat: ${contractAddress}`);
+      console.log(`Chain ID: ${chainId}`);
+      console.log(`RPC URL: ${rpcUrl}`);
+      
       // Si une clé de portefeuille est fournie, l'utiliser pour créer un signataire
       // Sinon, simuler l'opération en mode local
       let signer;
       if (walletKey) {
+        console.log('Utilisation de la clé privée fournie pour créer un signataire');
         signer = new ethers.Wallet(walletKey, this.provider);
+        console.log(`Adresse du signataire: ${signer.address}`);
       } else {
         // En mode local ou pour les tests, on peut utiliser un portefeuille aléatoire
         this.logger.warn('Aucune clé de portefeuille fournie, utilisation d\'un portefeuille aléatoire (mode local uniquement)');
+        console.log('ATTENTION: Création d\'un portefeuille aléatoire (ne fonctionnera qu\'en mode local)');
         signer = ethers.Wallet.createRandom().connect(this.provider);
+        console.log(`Adresse du portefeuille aléatoire: ${signer.address}`);
+      }
+      
+      // Vérifier le solde du signataire
+      try {
+        const balance = await this.provider.getBalance(signer.address);
+        console.log(`Solde du signataire: ${ethers.formatEther(balance)} ETH`);
+        if (balance.toString() === '0') {
+          console.log('AVERTISSEMENT: Le signataire n\'a pas de fonds pour payer les frais de transaction!');
+        }
+      } catch (balanceError) {
+        console.error('Erreur lors de la vérification du solde:', balanceError);
       }
       
       // Créer une instance de contrat avec le signataire
+      console.log('Connexion du contrat avec le signataire...');
       const contractWithSigner = this.contract.connect(signer) as unknown as OnchainRiddleContract;
       
       // Vérifier si le hash est au bon format (bytes32)
       let formattedAnswerHash = answerHash;
       if (!answerHash.startsWith('0x')) {
+        console.log('Ajout du préfixe 0x au hash de réponse');
         formattedAnswerHash = '0x' + answerHash;
       }
       
       // S'assurer que la longueur est correcte pour bytes32
       if (formattedAnswerHash.length !== 66) { // '0x' + 64 caractères
-        throw new Error('Le hash de la réponse doit être au format bytes32 (32 octets)');
+        const errorMsg = 'Le hash de la réponse doit être au format bytes32 (32 octets)';
+        console.error(errorMsg);
+        throw new Error(errorMsg);
       }
       
+      console.log(`Hash de réponse formaté: ${formattedAnswerHash}`);
+      
       // Définir l'énigme dans le contrat
+      console.log('Envoi de la transaction setRiddle au contrat...');
       const tx = await contractWithSigner.setRiddle(riddle, formattedAnswerHash);
+      console.log(`Transaction envoyée avec succès! Hash de transaction: ${tx.hash}`);
       
       // Attendre que la transaction soit minée
+      console.log('Attente de la confirmation de la transaction...');
       const receipt = await tx.wait();
+      console.log('Transaction confirmée!');
+      console.log(`Statut de la transaction: ${receipt.status}`);
+      console.log(`Bloc: ${receipt.blockNumber}`);
+      console.log(`Gas utilisé: ${receipt.gasUsed.toString()}`);
       
       // Vérifier si la transaction a réussi
       if (receipt && receipt.status === 1) {
-        this.logger.log(`Énigme définie avec succès: "${riddle}" avec le hash de réponse: ${formattedAnswerHash}`);
+        const successMsg = `Énigme définie avec succès: "${riddle}" avec le hash de réponse: ${formattedAnswerHash}`;
+        this.logger.log(successMsg);
+        console.log(successMsg);
+        console.log('=== FIN DE LA MÉTHODE setRiddle (SUCCÈS) ===');
         return true;
       }
       
+      console.log('Transaction confirmée mais avec un statut d\'échec');
+      console.log('=== FIN DE LA MÉTHODE setRiddle (ÉCHEC) ===');
       return false;
     } catch (error) {
       this.logger.error('Erreur lors de la définition de l\'énigme dans le contrat:', error);
+      console.error('=== ERREUR DANS LA MÉTHODE setRiddle ===');
+      console.error(`Message d'erreur: ${error.message}`);
+      console.error(`Stack trace: ${error.stack}`);
+      
+      // Vérifier si l'erreur est liée à une transaction rejetée
+      if (error.code && error.reason) {
+        console.error(`Code d'erreur: ${error.code}`);
+        console.error(`Raison: ${error.reason}`);
+      }
+      
+      console.log('=== FIN DE LA MÉTHODE setRiddle (ERREUR) ===');
       return false;
     }
   }

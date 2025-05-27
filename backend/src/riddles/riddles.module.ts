@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { RiddlesResolver } from './riddles.resolver';
 import { RiddlesService } from './riddles.service';
-import { RedisService } from '../common/redis.service';
 import { RiddlesGateway } from './riddles.gateway';
 import { PubSub } from 'graphql-subscriptions';
 import { PUB_SUB } from '../common/constants';
@@ -12,7 +11,6 @@ import { SocketService } from '../common/socket.service';
   providers: [
     RiddlesResolver, 
     RiddlesService, 
-    RedisService, 
     RiddlesGateway,
     EthereumService,
     SocketService,

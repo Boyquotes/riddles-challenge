@@ -57,7 +57,7 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect,
     console.log(`Client connected: ${client.id}`);
     this.activePlayers.set(client.id, client);
     
-    // If there's no active riddle, get a new one
+    // If there's no active riddle, get a new one (will be onchain or game_over)
     if (!this.activeRiddleId) {
       const riddle = await this.riddlesService.getRandomRiddle();
       this.activeRiddleId = riddle.id;
@@ -65,32 +65,27 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect,
       this.globalAttemptedAnswers.set(this.activeRiddleId, new Set());
     }
     
-    // Handle the case when all riddles are solved (game_over)
-    if (this.activeRiddleId === 'game_over') {
-      const gameOverRiddle = await this.riddlesService.getRandomRiddle();
+    // Get the current riddle (onchain or game_over)
+    const currentRiddle = this.activeRiddleId === 'game_over' ?
+      await this.riddlesService.getRandomRiddle() :
+      await this.riddlesService.getRiddle(this.activeRiddleId);
+    
+    // Send the riddle to the client
+    if (currentRiddle) {
       client.emit('currentRiddle', {
-        id: gameOverRiddle.id,
-        question: gameOverRiddle.question,
+        id: currentRiddle.id,
+        question: currentRiddle.question,
       });
     } else {
-      // Send the current riddle to the new player
-      const currentRiddle = await this.riddlesService.getRiddle(this.activeRiddleId);
-      if (currentRiddle) {
-        client.emit('currentRiddle', {
-          id: currentRiddle.id,
-          question: currentRiddle.question,
-        });
-      } else {
-        // Handle case where riddle couldn't be found
-        console.error(`Could not find riddle with ID: ${this.activeRiddleId}`);
-        // Get a new random riddle as fallback
-        const fallbackRiddle = await this.riddlesService.getRandomRiddle();
-        this.activeRiddleId = fallbackRiddle.id;
-        client.emit('currentRiddle', {
-          id: fallbackRiddle.id,
-          question: fallbackRiddle.question,
-        });
-      }
+      // Fallback if no riddle is available
+      console.error(`Could not find riddle with ID: ${this.activeRiddleId}`);
+      // Get a new random riddle as fallback (will be game_over in this case)
+      const fallbackRiddle = await this.riddlesService.getRandomRiddle();
+      this.activeRiddleId = fallbackRiddle.id;
+      client.emit('currentRiddle', {
+        id: fallbackRiddle.id,
+        question: fallbackRiddle.question,
+      });
     }
     
     // Broadcast the number of active players
@@ -123,6 +118,15 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect,
     const playerId = client.id;
     const { answer } = payload;
     const normalizedAnswer = answer.toLowerCase().trim();
+    
+    // If we're in game_over state, don't process answers
+    if (this.activeRiddleId === 'game_over') {
+      client.emit('answerResponse', {
+        correct: false,
+        message: 'Game is over. All riddles have been solved.',
+      });
+      return;
+    }
     
     // Get the set of globally attempted answers for the current riddle
     const globalAnswers = this.globalAttemptedAnswers.get(this.activeRiddleId) || new Set();
@@ -163,11 +167,11 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect,
     globalAnswers.add(normalizedAnswer);
     this.globalAttemptedAnswers.set(this.activeRiddleId, globalAnswers);
     
-    // Check if the answer is correct
+    // Check if the answer is correct (only onchain riddles now)
     const isCorrect = await this.riddlesService.checkAnswer(this.activeRiddleId, answer);
     
     if (isCorrect) {
-      // Get a new riddle
+      // Get a new riddle (will be game_over if the onchain riddle was solved)
       const newRiddle = await this.riddlesService.getRandomRiddle();
       this.activeRiddleId = newRiddle.id;
       this.playerAnswers.set(this.activeRiddleId, new Set());
