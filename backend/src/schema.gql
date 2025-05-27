@@ -2,6 +2,18 @@
 # THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
 # ------------------------------------------------------
 
+type GameOverStats {
+  message: String!
+  playerStats: [PlayerStat!]!
+  stats: GameStats
+}
+
+type GameStats {
+  localRiddlesSolved: Float!
+  onchainRiddlesSolved: Float!
+  totalRiddlesSolved: Float!
+}
+
 type MetaMaskTransaction {
   blockExplorer: String
   chainId: Float!
@@ -18,7 +30,13 @@ type Mutation {
   setSpecificRiddleOnchain(index: Float!): Boolean!
 }
 
+type PlayerStat {
+  address: String!
+  victories: Float!
+}
+
 type Query {
+  gameOverStats: GameOverStats!
   prepareMetaMaskTransaction(answer: String!): MetaMaskTransaction!
   randomRiddle: Riddle!
   riddle(id: String!): Riddle!

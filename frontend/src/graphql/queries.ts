@@ -44,6 +44,8 @@ export const RIDDLE_SOLVED_SUBSCRIPTION = gql`
       newRiddle {
         id
         question
+        solved
+        onchain
       }
     }
   }
@@ -58,5 +60,17 @@ export const SET_SPECIFIC_RIDDLE_ONCHAIN = gql`
 export const RESET_GAME = gql`
   mutation ResetGame {
     resetGame
+  }
+`;
+
+export const GET_GAME_STATS = gql`
+  query GetGameStats {
+    gameOverStats {
+      stats {
+        totalRiddlesSolved
+        onchainRiddlesSolved
+        localRiddlesSolved
+      }
+    }
   }
 `;

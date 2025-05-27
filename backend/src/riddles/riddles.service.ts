@@ -14,352 +14,456 @@ export class RiddlesService implements OnModuleInit {
   // Tableau pour suivre les indices des énigmes déjà utilisées
   private usedRiddleIndices: Set<number> = new Set();
   
+  // Ensemble pour stocker les énigmes déjà résolues dans cette partie
+  private solvedRiddles: Set<string> = new Set();
+  
+  // Statistiques de jeu
+  private gameStats = {
+    totalRiddlesSolved: 0,
+    onchainRiddlesSolved: 0,
+    localRiddlesSolved: 0,
+    startTime: new Date(),
+    lastSolvedTime: null as Date | null,
+    playerStats: new Map<string, { victories: number, lastVictory: Date }>(),
+  };
+  
   // Garder une trace de la dernière énigme proposée pour éviter les répétitions
   private lastProposedRiddleIndex: number | null = null;
   private currentOnchainRiddleIndex: number | null = null;
   private readonly logger = new Logger(RiddlesService.name);
   private availableRiddles: Array<{ text: string; answer: string }> = [
     { text: "What has keys but no locks, space but no room, and you can enter but not go in?", answer: "keyboard" },
-    { text: "I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?", answer: "echo" },
-    { text: "The more you take, the more you leave behind. What am I?", answer: "footsteps" },
-    { text: "What has a head, a tail, is brown, and has no legs?", answer: "penny" },
-    { text: "What gets wet while drying?", answer: "towel" },
-    { text: "What can you catch but not throw?", answer: "cold" },
-    { text: "What has many keys but can't open a single lock?", answer: "piano" },
-    { text: "What has to be broken before you can use it?", answer: "egg" },
-    { text: "What begins with T, ends with T, and has T in it?", answer: "teapot" },
-    { text: "What has one eye but cannot see?", answer: "needle" }
+    { text: "I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?", answer: "echo" }
   ];
   
   // Riddles with precomputed keccak256 hashes for easy setting on the blockchain
   private riddlesWithHash: Array<{ text: string; answer: string; hash: string }> = [
-    // { 
-    //   text: "What has keys but no locks, space but no room, and you can enter but not go in?", 
-    //   answer: "keyboard", 
-    //   hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("keyboard")).substring(2) 
-    // },
     { 
       text: "I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?", 
       answer: "echo", 
       hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("echo")).substring(2) 
     },
-    // { 
-    //   text: "The more you take, the more you leave behind. What am I?", 
-    //   answer: "footsteps", 
-    //   hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("footsteps")).substring(2) 
-    // },
     { 
       text: "What has a head, a tail, is brown, and has no legs?", 
       answer: "penny", 
       hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("penny")).substring(2) 
-    },
-    { 
-      text: "What gets wet while drying?", 
-      answer: "towel", 
-      hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("towel")).substring(2) 
     }
   ];
 
   constructor(
-    private readonly ethereumService: EthereumService,
-    private readonly socketService: SocketService,
-    @Inject(PUB_SUB) private readonly pubSub: PubSub,
-    private readonly eventEmitter: EventEmitter2
-  ) {}
-  
-  /**
-   * Initialisation du module
-   * Configuration des écouteurs d'événements
-   */
+    private ethereumService: EthereumService,
+    private socketService: SocketService,
+    @Inject(PUB_SUB) private pubSub: PubSub,
+    private eventEmitter: EventEmitter2
+  ) {
+    // S'abonner à l'événement riddle.setNext
+    this.eventEmitter.on('riddle.setNext', (payload) => {
+      console.log('=== ÉVÉNEMENT riddle.setNext REÇU ===');
+      console.log('Payload:', payload);
+      this.logger.log(`Événement riddle.setNext reçu de ${payload.source}`);
+      
+      // Appeler scheduleNextRiddle pour définir la prochaine énigme
+      this.scheduleNextRiddle();
+    });
+    
+    this.logger.log('Écouteur d\'événement riddle.setNext configuré');
+  }
+
   async onModuleInit() {
-    this.logger.log('Initialisation du service Riddles...');
-    this.logger.log('Configuration des écouteurs d\'événements...');
+    this.logger.log('RiddlesService initialized');
     
-    // Initialiser le suivi des énigmes utilisées
-    this.usedRiddleIndices = new Set<number>();
-    this.lastProposedRiddleIndex = null;
-    this.currentOnchainRiddleIndex = null;
+    // Réinitialiser les énigmes résolues et les statistiques
+    this.solvedRiddles.clear();
+    this.gameStats = {
+      totalRiddlesSolved: 0,
+      onchainRiddlesSolved: 0,
+      localRiddlesSolved: 0,
+      startTime: new Date(),
+      lastSolvedTime: null,
+      playerStats: new Map<string, { victories: number, lastVictory: Date }>(),
+    };
     
-    // Récupérer l'énigme actuelle sur la blockchain pour éviter de la répéter
+    this.logger.log('Tableau des énigmes résolues effacé et statistiques réinitialisées');
+    
+    // Initialiser le jeu au démarrage
     try {
-      const currentRiddle = await this.ethereumService.getCurrentRiddle();
-      if (currentRiddle && currentRiddle.question) {
-        this.logger.log(`Énigme actuelle sur la blockchain: "${currentRiddle.question}"`);
-        
-        // Trouver l'index de l'énigme actuelle dans notre tableau
-        const riddleIndex = this.riddlesWithHash.findIndex(r => r.text === currentRiddle.question);
-        if (riddleIndex !== -1) {
-          this.logger.log(`Index de l'énigme actuelle: ${riddleIndex}`);
-          this.currentOnchainRiddleIndex = riddleIndex;
-          this.lastProposedRiddleIndex = riddleIndex;
-          
-          // Ajouter également cet index aux énigmes utilisées
-          this.usedRiddleIndices.add(riddleIndex);
-        } else {
-          this.logger.warn(`L'énigme actuelle n'a pas été trouvée dans notre tableau d'énigmes`);
-        }
-      } else {
-        this.logger.log('Aucune énigme actuellement définie sur la blockchain');
-      }
-    } catch (error) {
-      this.logger.error('Erreur lors de la récupération de l\'\u00e9nigme actuelle:', error);
-    }
-    
-    this.logger.log('Suivi des énigmes utilisées initialisé');
-  }
-  
-  /**
-   * Écouteur d'événement pour définir la prochaine énigme
-   * Cet événement est émis par le service Ethereum lorsqu'une réponse correcte est détectée
-   */
-  @OnEvent('riddle.setNext')
-  async handleSetNextRiddle(payload: { timestamp: string; source: string }) {
-    this.logger.log(`Événement riddle.setNext reçu depuis ${payload.source} à ${payload.timestamp}`);
-    console.log(`=== ÉVÉNEMENT riddle.setNext REÇU ===`);
-    console.log(`Source: ${payload.source}`);
-    console.log(`Timestamp: ${payload.timestamp}`);
-    
-    // Vérifier si nous sommes en état de game over
-    try {
-      // Récupérer l'énigme actuelle
-      const currentRiddle = await this.getRiddle('onchain');
+      // Définir une nouvelle énigme
+      await this.resetGame();
+      this.logger.log('Game initialized successfully');
       
-      // Si l'énigme actuelle est 'game_over', ne pas définir de nouvelle énigme
-      if (currentRiddle && currentRiddle.id === 'game_over') {
-        console.log('Le jeu est en état de game over, aucune nouvelle énigme ne sera définie automatiquement');
-        this.logger.log('Game over: en attente de la réinitialisation manuelle par l\'utilisateur');
-        return;
-      }
-      
-      // Définir une énigme aléatoire sur la blockchain
-      await this.setRandomRiddleOnchain();
+      // Envoyer un message à tous les joueurs pour informer du démarrage d'une nouvelle partie
+      this.socketService.emitBlockchainSuccess('Nouvelle partie démarrée! Une nouvelle énigme a été définie.');
     } catch (error) {
-      this.logger.error('Erreur lors de la vérification de l\'\u00e9tat du jeu:', error);
-      // En cas d'erreur, essayer quand même de définir une nouvelle énigme
-      await this.setRandomRiddleOnchain();
+      this.logger.error('Failed to initialize game:', error);
     }
   }
-  
+
   /**
-   * Définit une énigme aléatoire sur la blockchain
-   * Sélectionne une énigme au hasard parmi celles disponibles qui n'ont pas encore été jouées
-   * @returns Une promesse qui se résout à true si l'énigme a été définie avec succès, false sinon
+   * Récupère une énigme spécifique par son ID
+   * @param id Identifiant de l'énigme
+   * @returns L'énigme correspondante ou null si non trouvée
    */
-  async setRandomRiddleOnchain(): Promise<boolean> {
+  async getRiddle(id: string): Promise<Riddle> {
     try {
-      console.log('=== DÉBUT DE LA MÉTHODE setRandomRiddleOnchain ===');
-      console.log(`Énigmes déjà utilisées: ${Array.from(this.usedRiddleIndices).join(', ')}`);
-      
-      // Vérifier si nous avons une clé privée pour signer la transaction
-      const privateKey = process.env.PRIVATE_KEY;
-      if (!privateKey) {
-        const errorMsg = 'Aucune clé privée disponible pour définir une énigme aléatoire';
-        this.logger.error(errorMsg);
-        console.error(errorMsg);
-        this.socketService.emitBlockchainError(errorMsg);
-        return false;
-      }
-      
-      // Vérifier si toutes les énigmes ont été utilisées
-      if (this.usedRiddleIndices.size >= this.riddlesWithHash.length) {
-        console.log('Toutes les énigmes ont été utilisées!');
+      // Si c'est une énigme onchain
+      if (id === 'onchain') {
+        const onchainRiddle = await this.ethereumService.getCurrentRiddle();
         
-        // Récupérer les statistiques des joueurs
-        const playerStats = await this.ethereumService.getPlayerStatistics();
-        
-        // Formater les statistiques pour l'affichage
-        let statsMessage = '';
-        if (Object.keys(playerStats).length > 0) {
-          statsMessage = Object.entries(playerStats)
-            .map(([address, wins]) => `${address}: ${wins} victoire${wins > 1 ? 's' : ''}`)
-            .join('\n');
-        } else {
-          statsMessage = 'Aucune statistique disponible';
+        if (onchainRiddle && onchainRiddle.question) {
+          return {
+            id: 'onchain',
+            question: onchainRiddle.question,
+            solved: false,
+            onchain: true
+          };
         }
         
-        // Créer le message de game over
-        const gameOverMessage = `Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.\n\nStatistiques des joueurs:\n${statsMessage}`;
-        
-        console.log('=== GAME OVER ===');
-        console.log(gameOverMessage);
-        
-        // Notifier tous les clients connectés que le jeu est terminé
-        const gameOverRiddle = {
-          id: 'game_over',
-          question: gameOverMessage,
-          type: 'game_over'
+        // Si pas d'énigme onchain disponible
+        return {
+          id: 'error',
+          question: 'Aucune énigme onchain disponible actuellement.',
+          solved: false,
+          onchain: false
         };
-        
-        // Notifier via Socket.IO
-        this.socketService.emitNewRiddle(gameOverRiddle);
-        
-        // Notifier via GraphQL
-        this.pubSub.publish('riddleSolved', { 
-          riddleSolved: {
-            solvedBy: 'system',
-            newRiddle: gameOverRiddle,
-          }
-        });
-        
-        // Ne pas réinitialiser la liste des énigmes utilisées ici
-        // Nous attendons que l'utilisateur clique sur le bouton de réinitialisation
-        console.log('Game over: en attente de la réinitialisation manuelle par l\'utilisateur');
-        
-        // Retourner true pour indiquer que le traitement s'est bien déroulé
-        return true;
       }
       
-      // Créer un tableau des indices d'énigmes non utilisées
-      const availableIndices = Array.from(
-        { length: this.riddlesWithHash.length },
-        (_, i) => i
-      ).filter(index => !this.usedRiddleIndices.has(index));
+      // Sinon, c'est une énigme locale
+      const riddleIndex = parseInt(id);
+      if (isNaN(riddleIndex) || riddleIndex < 0 || riddleIndex >= this.availableRiddles.length) {
+        this.logger.error(`Identifiant d'énigme invalide: ${id}`);
+        return {
+          id: 'error',
+          question: 'Énigme non trouvée.',
+          solved: false,
+          onchain: false
+        };
+      }
       
-      console.log(`Indices disponibles: ${availableIndices.join(', ')}`);
+      const selectedRiddle = this.availableRiddles[riddleIndex];
+      return {
+        id: riddleIndex.toString(),
+        question: selectedRiddle.text,
+        solved: this.usedRiddleIndices.has(riddleIndex),
+        onchain: false
+      };
+    } catch (error) {
+      this.logger.error(`Erreur lors de la récupération de l'énigme ${id}:`, error);
+      return {
+        id: 'error',
+        question: 'Erreur lors de la récupération de l\'énigme.',
+        solved: false,
+        onchain: false
+      };
+    }
+  }
+  
+  /**
+   * Récupère toutes les énigmes disponibles
+   * @returns Liste de toutes les énigmes
+   */
+  async getAllRiddles(): Promise<Riddle[]> {
+    try {
+      // Récupérer l'énigme onchain si disponible
+      const onchainRiddle = await this.ethereumService.getCurrentRiddle();
+      const riddles: Riddle[] = [];
+      
+      // Ajouter l'énigme onchain si disponible
+      if (onchainRiddle && onchainRiddle.question) {
+        riddles.push({
+          id: 'onchain',
+          question: onchainRiddle.question,
+          solved: false,
+          onchain: true
+        });
+      }
+      
+      // Ajouter les énigmes locales
+      this.availableRiddles.forEach((riddle, index) => {
+        riddles.push({
+          id: index.toString(),
+          question: riddle.text,
+          solved: this.usedRiddleIndices.has(index),
+          onchain: false
+        });
+      });
+      
+      return riddles;
+    } catch (error) {
+      this.logger.error('Erreur lors de la récupération de toutes les énigmes:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * Récupère une énigme aléatoire
+   * @returns Une énigme aléatoire ou un message de fin de jeu si toutes les énigmes sont résolues
+   */
+  async getRandomRiddle(): Promise<Riddle> {
+    try {
+      // Vérifier si toutes les énigmes ont été résolues
+      const allRiddlesSolved = await this.checkAllRiddlesSolved();
+      if (allRiddlesSolved) {
+        this.logger.log('Toutes les énigmes ont été résolues. Affichage du message de fin de jeu.');
+        return {
+          id: 'game_over',
+          question: 'Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.',
+          solved: true,
+          onchain: false
+        };
+      }
+      
+      // Vérifier si une énigme onchain est disponible
+      const onchainRiddle = await this.ethereumService.getCurrentRiddle();
+      
+      // if (onchainRiddle && onchainRiddle.question) {
+      //   // Vérifier si cette énigme a déjà été résolue
+      //   if (this.solvedRiddles.has('onchain')) {
+      //     this.logger.log('L\'énigme onchain a déjà été résolue. Sélection d\'une énigme locale.');
+      //   } else {
+      //     this.logger.log(`Énigme onchain trouvée: "${onchainRiddle.question}"`);
+      //     return {
+      //       id: 'onchain',
+      //       question: onchainRiddle.question,
+      //       solved: false,
+      //       onchain: true
+      //     };
+      //   }
+      // }
+      
+      // Si pas d'énigme onchain disponible ou si elle a déjà été résolue, sélectionner une énigme locale
+      // Vérifier s'il reste des énigmes locales non résolues
+      const availableIndices = [];
+      for (let i = 0; i < this.availableRiddles.length; i++) {
+        if (!this.solvedRiddles.has(i.toString())) {
+          availableIndices.push(i);
+        }
+      }
       
       if (availableIndices.length === 0) {
-        const errorMsg = 'Aucune énigme disponible (toutes ont été utilisées)';
-        this.logger.error(errorMsg);
-        console.error(errorMsg);
-        this.socketService.emitBlockchainError(errorMsg);
+        this.logger.log('Toutes les énigmes locales ont été résolues. Affichage du message de fin de jeu.');
+        return {
+          id: 'game_over',
+          question: 'Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.',
+          solved: true,
+          onchain: false
+        };
+      }
+      
+      // Sélectionner une énigme aléatoire parmi celles qui n'ont pas encore été résolues
+      // Éviter de répéter la dernière énigme proposée si possible
+      let randomIndex: number;
+      
+      // Vérifier si nous avons encore des énigmes disponibles
+      if (availableIndices.length === 0) {
+        // Si toutes les énigmes ont été résolues, retourner le message de fin de jeu
+        this.logger.log('Toutes les énigmes ont été résolues, affichage du message de fin de jeu');
+        return {
+          id: 'game_over',
+          question: 'Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.',
+          solved: true,
+          onchain: false
+        };
+      }
+      
+      // Filtrer les indices disponibles pour exclure la dernière énigme proposée
+      const filteredIndices = availableIndices.filter(index => index !== this.lastProposedRiddleIndex);
+      
+      if (filteredIndices.length > 0) {
+        // S'il reste des énigmes autres que la dernière proposée, en choisir une au hasard
+        randomIndex = filteredIndices[Math.floor(Math.random() * filteredIndices.length)];
+        this.logger.log(`Sélection d'une nouvelle énigme différente de la précédente (index ${this.lastProposedRiddleIndex})`);
+      } else {
+        // S'il ne reste qu'une seule énigme disponible (qui est la dernière proposée), l'utiliser quand même
+        randomIndex = availableIndices[0];
+        this.logger.log(`Une seule énigme disponible (index ${randomIndex}), réutilisation de celle-ci`);
+      }
+      
+      // Marquer cette énigme comme utilisée
+      this.usedRiddleIndices.add(randomIndex);
+      this.lastProposedRiddleIndex = randomIndex;
+      
+      const selectedRiddle = this.availableRiddles[randomIndex];
+      this.logger.log(`Énigme locale sélectionnée: "${selectedRiddle.text}"`);
+      
+      return {
+        id: randomIndex.toString(),
+        question: selectedRiddle.text,
+        solved: false,
+        onchain: false
+      };
+    } catch (error) {
+      this.logger.error('Erreur lors de la récupération d\'une énigme aléatoire:', error);
+      return {
+        id: 'error',
+        question: 'Désolé, une erreur est survenue lors de la récupération de l\'énigme. Veuillez réessayer.',
+        solved: false,
+        onchain: false
+      };
+    }
+  }
+
+  /**
+   * Vérifie si la réponse à l'énigme est correcte
+   * @param riddleId Identifiant de l'énigme
+   * @param answer Réponse proposée
+   * @param playerId Identifiant du joueur (optionnel)
+   * @returns Vrai si la réponse est correcte, faux sinon
+   */
+  async checkAnswer(riddleId: string, answer: string, playerId?: string): Promise<boolean> {
+    try {
+      // Vérifier si l'énigme a déjà été résolue
+      if (this.solvedRiddles.has(riddleId)) {
+        this.logger.log(`L'énigme ${riddleId} a déjà été résolue`);
+        // On peut quand même vérifier si la réponse est correcte, mais sans mettre à jour les statistiques
+      }
+      
+      // Normaliser la réponse (minuscules, sans espaces)
+      const normalizedAnswer = answer.toLowerCase().trim();
+      
+      // Vérifier si c'est une énigme onchain
+      if (riddleId === 'onchain') {
+        this.logger.log(`Vérification de la réponse onchain: "${normalizedAnswer}"`);
+        const isCorrect = await this.ethereumService.checkAnswer(normalizedAnswer);
+        
+        if (isCorrect && !this.solvedRiddles.has(riddleId)) {
+          this.logger.log('Réponse onchain correcte!');
+          
+          // Mettre à jour les statistiques
+          this.gameStats.totalRiddlesSolved++;
+          this.gameStats.onchainRiddlesSolved++;
+          this.gameStats.lastSolvedTime = new Date();
+          this.solvedRiddles.add(riddleId);
+          
+          // Mettre à jour les statistiques du joueur si un ID est fourni
+          if (playerId) {
+            const playerStats = this.gameStats.playerStats.get(playerId) || { victories: 0, lastVictory: new Date() };
+            playerStats.victories++;
+            playerStats.lastVictory = new Date();
+            this.gameStats.playerStats.set(playerId, playerStats);
+          }
+          
+          // Publier l'événement de résolution d'énigme
+          await this.pubSub.publish('riddleSolved', { 
+            riddleSolved: { 
+              id: riddleId,
+              onchain: true
+            } 
+          });
+          
+          // Vérifier si toutes les énigmes ont été résolues
+          const allRiddlesSolved = await this.checkAllRiddlesSolved();
+          
+          if (!allRiddlesSolved) {
+            // Planifier la prochaine énigme seulement si toutes les énigmes n'ont pas été résolues
+            this.scheduleNextRiddle();
+          }
+        }
+        
+        return isCorrect;
+      }
+      
+      // Sinon, c'est une énigme locale
+      const riddleIndex = parseInt(riddleId);
+      if (isNaN(riddleIndex) || riddleIndex < 0 || riddleIndex >= this.availableRiddles.length) {
+        this.logger.error(`Identifiant d'énigme invalide: ${riddleId}`);
         return false;
       }
       
-      // Sélectionner un index aléatoire parmi les indices disponibles
-      // Éviter de sélectionner la même énigme que celle actuellement sur la blockchain
-      // ou celle qui vient d'être proposée
-      let selectedIndex: number;
-      let attempts = 0;
-      const maxAttempts = availableIndices.length * 2; // Éviter les boucles infinies
+      const correctAnswer = this.availableRiddles[riddleIndex].answer.toLowerCase().trim();
+      const isCorrect = normalizedAnswer === correctAnswer;
       
-      do {
-        const randomAvailableIndex = Math.floor(Math.random() * availableIndices.length);
-        selectedIndex = availableIndices[randomAvailableIndex];
-        attempts++;
+      if (isCorrect && !this.solvedRiddles.has(riddleId)) {
+        this.logger.log(`Réponse correcte pour l'énigme ${riddleId}!`);
         
-        // Si nous avons essayé trop de fois ou s'il n'y a qu'une seule énigme disponible, accepter celle-ci
-        if (attempts >= maxAttempts || availableIndices.length <= 1) {
-          console.log(`Après ${attempts} tentatives, acceptation de l'index ${selectedIndex}`);
-          break;
+        // Mettre à jour les statistiques
+        this.gameStats.totalRiddlesSolved++;
+        this.gameStats.localRiddlesSolved++;
+        this.gameStats.lastSolvedTime = new Date();
+        this.solvedRiddles.add(riddleId);
+        
+        // Mettre à jour les statistiques du joueur si un ID est fourni
+        if (playerId) {
+          const playerStats = this.gameStats.playerStats.get(playerId) || { victories: 0, lastVictory: new Date() };
+          playerStats.victories++;
+          playerStats.lastVictory = new Date();
+          this.gameStats.playerStats.set(playerId, playerStats);
         }
-      } while (selectedIndex === this.lastProposedRiddleIndex || selectedIndex === this.currentOnchainRiddleIndex);
-      
-      console.log(`Index sélectionné après ${attempts} tentatives: ${selectedIndex}`);
-      console.log(`Dernière énigme proposée: ${this.lastProposedRiddleIndex}, Énigme actuelle: ${this.currentOnchainRiddleIndex}`);
-      
-      // Mettre à jour la dernière énigme proposée
-      this.lastProposedRiddleIndex = selectedIndex;
-      this.currentOnchainRiddleIndex = selectedIndex;
-      
-      const selectedRiddle = this.riddlesWithHash[selectedIndex];
-      
-      // Ajouter l'index à la liste des indices utilisés
-      this.usedRiddleIndices.add(selectedIndex);
-      console.log(`Ajout de l'index ${selectedIndex} à la liste des énigmes utilisées`);
-      
-      console.log(`Énigme aléatoire sélectionnée: index=${selectedIndex}`);
-      console.log(`Texte: "${selectedRiddle.text}"`);
-      console.log(`Réponse: "${selectedRiddle.answer}"`);
-      console.log(`Hash: ${selectedRiddle.hash}`);
-      
-      // Définir l'énigme sur la blockchain
-      console.log('Appel du service Ethereum pour définir l\'énigme...');
-      const success = await this.ethereumService.setRiddle(
-        selectedRiddle.text,
-        selectedRiddle.hash,
-        privateKey
-      );
-      
-      if (success) {
-        const successMsg = `Énigme aléatoire #${selectedIndex} définie avec succès sur la blockchain`;
-        this.logger.log(successMsg);
-        console.log(successMsg);
         
-        // Créer un objet riddle pour notifier les clients
-        const newRiddle = {
-          id: 'onchain',
-          question: selectedRiddle.text,
-          type: 'onchain'
-        };
-        
-        // Notifier tous les clients connectés de la nouvelle énigme
-        console.log('Notification des clients via Socket.IO...');
-        this.socketService.emitNewRiddle(newRiddle);
-        
-        // Notifier également via GraphQL
-        console.log('Publication via PubSub pour GraphQL...');
-        this.pubSub.publish('riddleSolved', { 
-          riddleSolved: {
-            solvedBy: 'system',
-            newRiddle,
-          }
+        // Publier l'événement de résolution d'énigme
+        await this.pubSub.publish('riddleSolved', { 
+          riddleSolved: { 
+            id: riddleId,
+            onchain: false
+          } 
         });
         
-        console.log('=== FIN DE LA MÉTHODE setRandomRiddleOnchain (SUCCÈS) ===');
-        return true;
-      } else {
-        const errorMsg = `Échec de la définition de l'énigme aléatoire #${selectedIndex}`;
-        this.logger.error(errorMsg);
-        console.error(errorMsg);
-        this.socketService.emitBlockchainError(errorMsg);
-        console.log('=== FIN DE LA MÉTHODE setRandomRiddleOnchain (ÉCHEC) ===');
-        return false;
+        // Vérifier si toutes les énigmes ont été résolues
+        await this.checkAllRiddlesSolved();
       }
+      
+      return isCorrect;
     } catch (error) {
-      this.logger.error('Erreur lors de la définition d\'une énigme aléatoire:', error);
-      console.error('=== ERREUR DANS LA MÉTHODE setRandomRiddleOnchain ===');
-      console.error(`Message d'erreur: ${error.message}`);
-      console.error(`Stack trace: ${error.stack}`);
-      this.socketService.emitBlockchainError(`Erreur lors de la définition d'une énigme aléatoire: ${error.message}`);
+      this.logger.error('Erreur lors de la vérification de la réponse:', error);
       return false;
     }
   }
 
-  async getRiddle(id: string): Promise<Riddle> {
-    // Only support onchain riddle
-    if (id !== 'onchain') {
-      return null;
-    }
+  /**
+   * Vérifie si toutes les énigmes ont été résolues
+   * Si c'est le cas, affiche un message de fin de jeu avec les statistiques
+   * @returns true si toutes les énigmes ont été résolues, false sinon
+   */
+  async checkAllRiddlesSolved(): Promise<boolean> {
+    // Compter le nombre total d'énigmes disponibles (locales + onchain)
+    const totalLocalRiddles = this.availableRiddles.length;
+    console.log('Total d\'énigmes locales:', totalLocalRiddles);
+    const totalOnchainRiddles = this.riddlesWithHash.length;
+    console.log('Total d\'énigmes onchain:', totalOnchainRiddles);
+    console.log('Total d\'énigmes résolues:', this.solvedRiddles.size);
+    // Vérifier si toutes les énigmes ont été résolues
+    const allRiddlesSolved = this.solvedRiddles.size >= totalOnchainRiddles;
     
-    try {
-      const onchainRiddleData = await this.ethereumService.getRiddle();
+    if (allRiddlesSolved) {
+      this.logger.log('Toutes les énigmes ont été résolues! Fin du jeu.');
       
-      return {
-        id: 'onchain',
-        question: onchainRiddleData.question,
-        solved: onchainRiddleData.winner !== '0x0000000000000000000000000000000000000000',
-        answer: undefined, // We don't know the answer, it's stored as a hash in the contract
-        onchain: true
-      };
-    } catch (error) {
-      this.logger.error('Error fetching onchain riddle:', error);
-      return null;
-    }
-  }
-
-  async getAllRiddles(): Promise<Riddle[]> {
-    // Only return the onchain riddle
-    const riddle = await this.getRiddle('onchain');
-    return riddle ? [riddle] : [];
-  }
-
-  async getRandomRiddle(): Promise<Riddle> {
-    // Get the onchain riddle
-    const riddle = await this.getRiddle('onchain');
-    
-    // If the riddle is solved or doesn't exist, show game over with stats
-    if (!riddle || riddle.solved) {
+      // Calculer le temps total de jeu
+      const gameEndTime = new Date();
+      const gameDurationMs = gameEndTime.getTime() - this.gameStats.startTime.getTime();
+      const gameDurationMinutes = Math.floor(gameDurationMs / 60000);
+      const gameDurationSeconds = Math.floor((gameDurationMs % 60000) / 1000);
+      
+      // Préparer les statistiques de fin de jeu
       const stats = await this.getGameOverStats();
       
-      return {
-        id: 'game_over',
-        question: `Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.\n\nStatistiques des joueurs:\n${stats.message}`,
-        solved: true,
-        answer: 'Merci d\'avoir joué !'
+      // Ajouter des statistiques supplémentaires
+      const gameOverMessage = {
+        message: `Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.\n\n` +
+                `Durée totale: ${gameDurationMinutes}m ${gameDurationSeconds}s\n` +
+                `Total d'énigmes résolues: ${this.gameStats.totalRiddlesSolved}\n` +
+                `Énigmes onchain résolues: ${this.gameStats.onchainRiddlesSolved}\n` +
+                `Énigmes locales résolues: ${this.gameStats.localRiddlesSolved}\n\n` +
+                `Classement des joueurs:\n${stats.message}`,
+        stats: this.gameStats,
+        playerStats: stats.playerStats
       };
+      
+      // Publier l'événement de fin de jeu
+      await this.pubSub.publish('gameOver', { gameOver: gameOverMessage });
+      
+      // Envoyer le message de fin de jeu à tous les joueurs via Socket.IO
+      console.log('Envoi du message de fin de jeu à tous les joueurs via Socket.IO...');
+      this.socketService.emitBlockchainSuccess('Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.');
+      
+      // Envoyer également un message spécial pour le game over
+      if (this.socketService.getSocketServer()) {
+        this.socketService.getSocketServer().emit('gameOver', gameOverMessage);
+        console.log('Message de game over envoyé via Socket.IO');
+      }
+      
+      return true;
     }
     
-    return riddle;
+    return false;
   }
   
   /**
@@ -402,194 +506,114 @@ export class RiddlesService implements OnModuleInit {
       };
     }
   }
-  
+
   /**
    * Formate une adresse Ethereum pour l'affichage
-   * Affiche les 6 premiers et 4 derniers caractères séparés par '...'
+   * @param address Adresse Ethereum complète
+   * @returns Adresse formatée (début...fin)
    */
   private formatAddress(address: string): string {
     if (!address || address.length < 10) return address;
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   }
 
-  async checkAnswer(id: string, answer: string): Promise<boolean> {
-    // Only support onchain riddle
-    if (id !== 'onchain') {
-      return false;
-    }
-
-    return this.checkOnchainAnswer(answer);
-  }
-
-  async checkOnchainAnswer(answer: string): Promise<boolean> {
-    try {
-      // Calculate the hash of the answer
-      const answerHash = ethers.keccak256(ethers.toUtf8Bytes(answer));
-      
-      // Get the contract instance from the EthereumService
-      const contract = this.ethereumService.getContract();
-      
-      // Check if the riddle is still active
-      const isActive = await contract.isActive();
-      if (!isActive) {
-        this.logger.log('Riddle is no longer active on the blockchain');
-        return false;
-      }
-      
-      // We can't directly check if the answer is correct without revealing the hash
-      // So we'll submit the answer to the contract and check the result
-      // This is a read-only call that doesn't modify the blockchain state
-      const isCorrect = await this.ethereumService.checkAnswer(answer);
-      
-      if (isCorrect) {
-        this.logger.log('Onchain riddle solved correctly!');
-        
-        // Planifier la définition de la prochaine énigme après un délai de 4 secondes
-        this.scheduleNextRiddle();
-      }
-      
-      return isCorrect;
-    } catch (error) {
-      this.logger.error('Error checking onchain answer:', error);
-      return false;
-    }
-  }
-  
   /**
-   * Planifie la définition de la prochaine énigme après un délai de 4 secondes
-   * Cela permet aux joueurs de voir le message de succès avant que la nouvelle énigme ne soit définie
+   * Prépare une transaction pour MetaMask
+   * @param answer Réponse à l'énigme
+   * @returns Données de transaction pour MetaMask
+   */
+  async prepareMetaMaskTransaction(answer: string): Promise<MetaMaskTransaction> {
+    try {
+      const normalizedAnswer = answer.toLowerCase().trim();
+      return await this.ethereumService.prepareMetaMaskTransaction(normalizedAnswer);
+    } catch (error) {
+      this.logger.error('Erreur lors de la préparation de la transaction MetaMask:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Planifie la définition de la prochaine énigme
+   * Attend 2 secondes avant de définir une nouvelle énigme
    */
   private scheduleNextRiddle(): void {
     console.log('=== DÉBUT DE LA PLANIFICATION DE LA PROCHAINE ÉNIGME ===');
     
     // Vérifier si nous avons une clé privée pour signer la transaction
     const privateKey = process.env.PRIVATE_KEY;
-    console.log(`Clé privée disponible: ${privateKey ? 'Oui (masquée)' : 'Non'}`);
-    
     if (!privateKey) {
-      const errorMsg = 'Aucune clé privée disponible pour planifier la prochaine énigme';
-      this.logger.warn(errorMsg);
-      console.warn(errorMsg);
-      // Notifier les clients de l'erreur
-      this.socketService.emitBlockchainError('Impossible de définir la prochaine énigme: clé privée manquante');
+      console.log('Aucune clé privée configurée. Impossible de définir une nouvelle énigme automatiquement.');
       return;
     }
     
-    // Vérifier le mode réseau et autres paramètres de configuration
-    const networkMode = process.env.NETWORK_MODE || 'testnet';
-    const contractAddress = process.env.CONTRACT_ADDRESS || 'non défini';
-    const chainId = process.env.ACTIVE_CHAIN_ID || 'non défini';
-    
-    console.log('=== CONFIGURATION POUR LA PLANIFICATION ===');
-    console.log(`Mode réseau: ${networkMode}`);
-    console.log(`Adresse du contrat: ${contractAddress}`);
-    console.log(`Chain ID: ${chainId}`);
-    console.log(`Nombre d'énigmes disponibles: ${this.riddlesWithHash.length}`);
-    
-    // Vérifier si nous avons des énigmes disponibles
-    if (this.riddlesWithHash.length === 0) {
-      const errorMsg = 'Aucune énigme disponible pour la planification';
-      this.logger.error(errorMsg);
-      console.error(errorMsg);
-      this.socketService.emitBlockchainError(errorMsg);
-      return;
-    }
-    
-    this.logger.log(`Planification de la prochaine énigme dans 4 secondes... (Mode réseau: ${networkMode})`);
-    console.log(`Début du compte à rebours de 4 secondes avant de définir la nouvelle énigme...`);
-    
-    // Utiliser setTimeout pour définir la prochaine énigme après 4 secondes
+    // Attendre 2 secondes avant de définir la nouvelle énigme
+    // Cela donne le temps à la transaction précédente d'être confirmée
     const timerId = setTimeout(async () => {
-      console.log('=== DÉLAI DE 4 SECONDES ÉCOULÉ, DÉFINITION DE LA NOUVELLE ÉNIGME ===');
+      console.log('=== DÉLAI DE 2 SECONDES ÉCOULÉ, DÉFINITION DE LA NOUVELLE ÉNIGME ===');
       try {
         // Calculer l'index de la prochaine énigme (aléatoire ou séquentiel)
         // Ici nous choisissons un index aléatoire pour plus de variété
-        const nextIndex = Math.floor(Math.random() * this.riddlesWithHash.length);
+        let nextRiddleIndex;
         
-        const logMsg = `Définition automatique de l'énigme #${nextIndex} après délai...`;
-        this.logger.log(logMsg);
-        console.log(logMsg);
+        // Éviter de répéter la même énigme onchain si possible
+        if (this.riddlesWithHash.length > 1 && this.currentOnchainRiddleIndex !== null) {
+          // Créer un tableau d'indices disponibles en excluant l'index actuel
+          const availableIndices = Array.from(
+            { length: this.riddlesWithHash.length },
+            (_, i) => i
+          ).filter(index => index !== this.currentOnchainRiddleIndex);
+          
+          // Sélectionner un index aléatoire parmi les disponibles
+          nextRiddleIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+          
+          this.logger.log(`Sélection d'une nouvelle énigme onchain différente de la précédente (index ${this.currentOnchainRiddleIndex})`);
+        } else {
+          // Si c'est la première énigme ou s'il n'y a qu'une seule énigme disponible
+          nextRiddleIndex = Math.floor(Math.random() * this.riddlesWithHash.length);
+          
+          if (this.currentOnchainRiddleIndex !== null) {
+            this.logger.log(`Une seule énigme onchain disponible, réutilisation de l'index ${nextRiddleIndex}`);
+          } else {
+            this.logger.log(`Première énigme onchain, sélection de l'index ${nextRiddleIndex}`);
+          }
+        }
         
-        // Récupérer l'énigme spécifique
-        const selectedRiddle = this.riddlesWithHash[nextIndex];
-        console.log('=== DÉTAILS DE L\'ÉNIGME SÉLECTIONNÉE ===');
-        console.log(`Index: ${nextIndex}`);
-        console.log(`Texte: "${selectedRiddle.text}"`);
-        console.log(`Réponse: "${selectedRiddle.answer}"`);
-        console.log(`Hash: ${selectedRiddle.hash}`);
-        
-        this.logger.log(`Énigme sélectionnée: "${selectedRiddle.text}", Réponse: "${selectedRiddle.answer}", Hash: ${selectedRiddle.hash}`);
-        
-        console.log('Appel du service Ethereum pour définir l\'énigme dans la blockchain...');
-        
-        // Définir directement l'énigme dans la blockchain sans passer par setSpecificRiddleOnchain
-        // pour éviter les problèmes potentiels
-        const success = await this.ethereumService.setRiddle(
-          selectedRiddle.text, 
-          selectedRiddle.hash, 
-          privateKey
-        );
-        
-        console.log(`Résultat de l'opération setRiddle: ${success ? 'SUCCÈS' : 'ÉCHEC'}`);
+        // Définir la nouvelle énigme sur la blockchain
+        const success = await this.setSpecificRiddleOnchain(nextRiddleIndex);
         
         if (success) {
-          const successMsg = `Énigme #${nextIndex} définie automatiquement avec succès après résolution!`;
-          this.logger.log(successMsg);
-          console.log(successMsg);
+          console.log(`=== NOUVELLE ÉNIGME DÉFINIE AVEC SUCCÈS: "${this.riddlesWithHash[nextRiddleIndex].text}" ===`);
           
-          // Créer un objet riddle pour notifier les clients
+          // Mettre à jour l'index de l'énigme onchain actuelle
+          this.currentOnchainRiddleIndex = nextRiddleIndex;
+          
+          // Créer l'objet de la nouvelle énigme
           const newRiddle = {
             id: 'onchain',
-            question: selectedRiddle.text
+            question: this.riddlesWithHash[nextRiddleIndex].text,
+            solved: false,
+            onchain: true
           };
           
-          console.log('Notification de tous les clients connectés via Socket.IO...');
-          // Notifier tous les clients connectés de la nouvelle énigme
-          this.socketService.emitNewRiddle(newRiddle);
+          // Publier l'événement de nouvelle énigme via GraphQL
+          await this.pubSub.publish('newRiddle', { 
+            newRiddle: newRiddle
+          });
           
-          console.log('Notification de succès envoyée aux clients');
-          // Notifier également du succès de l'opération
-          this.socketService.emitBlockchainSuccess('Nouvelle énigme définie automatiquement avec succès!');
-          
-          // Notification de la nouvelle énigme via le PubSub pour GraphQL
-          console.log('Publication de la nouvelle énigme via PubSub pour GraphQL...');
-          try {
-            // Vérifier si le service a accès au PubSub
-            if (this.pubSub) {
-              this.pubSub.publish('riddleSolved', { 
-                riddleSolved: {
-                  solvedBy: 'system',
-                  newRiddle: {
-                    id: 'onchain',
-                    question: selectedRiddle.text,
-                    type: 'onchain'
-                  },
-                }
-              });
-              console.log('Publication PubSub réussie!');
-            } else {
-              console.warn('PubSub non disponible dans le service Riddles!');
-            }
-          } catch (pubSubError) {
-            console.error('Erreur lors de la publication via PubSub:', pubSubError);
-          }
-          console.log('Notification complète de tous les clients terminée');
+          // Envoyer la nouvelle énigme à tous les joueurs via Socket.IO
+          console.log('Envoi de la nouvelle énigme à tous les joueurs via Socket.IO...');
+          this.socketService.emitNewRiddle({
+            id: newRiddle.id,
+            question: newRiddle.question
+          });
+          console.log('Nouvelle énigme envoyée avec succès via Socket.IO');
         } else {
-          const errorMsg = `Échec de la définition automatique de l'énigme #${nextIndex}`;
-          this.logger.error(errorMsg);
-          console.error(errorMsg);
-          this.socketService.emitBlockchainError(errorMsg);
+          console.error('=== ÉCHEC DE LA DÉFINITION DE LA NOUVELLE ÉNIGME ===');
         }
       } catch (error) {
-        this.logger.error('Erreur lors de la définition automatique de la prochaine énigme:', error);
-        console.error('=== ERREUR LORS DE LA DÉFINITION AUTOMATIQUE DE LA PROCHAINE ÉNIGME ===');
-        console.error(`Message d'erreur: ${error.message}`);
-        console.error(`Stack trace: ${error.stack}`);
-        this.socketService.emitBlockchainError(`Erreur lors de la définition automatique de la prochaine énigme: ${error.message}`);
-      } finally {
-        console.log('=== FIN DE LA PLANIFICATION DE LA PROCHAINE ÉNIGME ===');
+        console.error('=== ERREUR LORS DE LA DÉFINITION DE LA NOUVELLE ÉNIGME ===', error);
       }
-    }, 4000); // 4 secondes de délai
+    }, 1000);
     
     console.log(`Timer ID pour la planification: ${timerId}`);
   }
@@ -598,104 +622,35 @@ export class RiddlesService implements OnModuleInit {
    * Définit la prochaine énigme dans la blockchain lorsqu'une énigme est résolue
    * Sélectionne une énigme aléatoire parmi celles disponibles
    */
-  async setNextRiddleInBlockchain(): Promise<boolean> {
+  async setSpecificRiddleOnchain(riddleIndex: number): Promise<boolean> {
     try {
-      this.logger.log('Tentative de définition de la prochaine énigme dans la blockchain...');
-      
-      // Vérifier si nous avons une clé privée pour signer la transaction
-      const privateKey = process.env.PRIVATE_KEY;
-      if (!privateKey) {
-        this.logger.warn('Aucune clé privée disponible pour définir la prochaine énigme');
+      if (riddleIndex < 0 || riddleIndex >= this.riddlesWithHash.length) {
+        this.logger.error(`Index d'énigme invalide: ${riddleIndex}`);
         return false;
       }
       
-      // Définir la prochaine énigme dans la blockchain
-      const success = await this.ethereumService.setNextRiddle(this.availableRiddles, privateKey);
+      const riddle = this.riddlesWithHash[riddleIndex];
+      this.logger.log(`Définition de l'énigme sur la blockchain: "${riddle.text}"`);
+      
+      // Définir l'énigme sur la blockchain en utilisant setNextRiddle
+      const success = await this.ethereumService.setNextRiddle([{ text: riddle.text, answer: riddle.answer }]);
       
       if (success) {
-        this.logger.log('Prochaine énigme définie avec succès dans la blockchain');
+        this.logger.log(`Énigme définie avec succès sur la blockchain: "${riddle.text}"`);
+        return true;
+      } else {
+        this.logger.error('Échec de la définition de l\'énigme sur la blockchain');
+        return false;
       }
-      
-      return success;
     } catch (error) {
-      this.logger.error('Erreur lors de la définition de la prochaine énigme dans la blockchain:', error);
+      this.logger.error('Erreur lors de la définition de l\'énigme sur la blockchain:', error);
       return false;
     }
   }
   
   /**
-   * Définit une énigme spécifique dans la blockchain par son index dans le tableau riddlesWithHash
-   * @param index L'index de l'énigme à définir dans le tableau riddlesWithHash
-   * @returns true si l'énigme a été définie avec succès, false sinon
-   */
-  async setSpecificRiddleOnchain(index: number): Promise<boolean> {
-    try {
-      this.logger.log(`Tentative de définition de l'énigme #${index} dans la blockchain...`);
-      
-      // Vérifier si l'index est valide
-      if (index < 0 || index >= this.riddlesWithHash.length) {
-        this.logger.error(`Index d'énigme invalide: ${index}. Doit être entre 0 et ${this.riddlesWithHash.length - 1}`);
-        return false;
-      }
-      
-      // Vérifier si nous avons une clé privée pour signer la transaction
-      const privateKey = process.env.PRIVATE_KEY;
-      if (!privateKey) {
-        this.logger.warn('Aucune clé privée disponible pour définir l\'énigme');
-        return false;
-      }
-      
-      // Récupérer l'énigme spécifique
-      const selectedRiddle = this.riddlesWithHash[index];
-      
-      // Définir l'énigme dans la blockchain en utilisant directement le hash précompilé
-      const success = await this.ethereumService.setRiddle(
-        selectedRiddle.text, 
-        selectedRiddle.hash, 
-        privateKey
-      );
-      
-      if (success) {
-        this.logger.log(`Énigme #${index} "${selectedRiddle.text}" définie avec succès dans la blockchain`);
-        this.logger.log(`Réponse: "${selectedRiddle.answer}", Hash: ${selectedRiddle.hash}`);
-        
-        // Créer un objet riddle pour notifier les clients
-        const newRiddle = {
-          id: 'onchain',
-          question: selectedRiddle.text
-        };
-        
-        // Notifier tous les clients connectés de la nouvelle énigme
-        this.socketService.emitNewRiddle(newRiddle);
-        
-        // Notifier également du succès de l'opération
-        this.socketService.emitBlockchainSuccess('Nouvelle énigme définie avec succès sur la blockchain!');
-      }
-      
-      return success;
-    } catch (error) {
-      this.logger.error(`Erreur lors de la définition de l'énigme #${index} dans la blockchain:`, error);
-      return false;
-    }
-  }
-  
-  /**
-   * Prepare transaction data for MetaMask to submit an answer to the contract
-   * This returns the data needed for the frontend to create a transaction with MetaMask
-   * @throws Error if the riddle is not active or other blockchain errors
-   */
-  async prepareMetaMaskTransaction(answer: string): Promise<MetaMaskTransaction> {
-    try {
-      return await this.ethereumService.prepareMetaMaskTransaction(answer);
-    } catch (error) {
-      // Propager l'erreur pour que le resolver puisse la gérer
-      throw error;
-    }
-  }
-  
-  /**
-   * Réinitialise le jeu à la première énigme
-   * @returns Une promesse qui se résout à true si le jeu a été réinitialisé avec succès, false sinon
+   * Réinitialise le jeu en effaçant la liste des énigmes utilisées
+   * et en définissant la première énigme sur la blockchain
    */
   async resetGame(): Promise<boolean> {
     try {
@@ -705,7 +660,19 @@ export class RiddlesService implements OnModuleInit {
       this.usedRiddleIndices.clear();
       this.lastProposedRiddleIndex = null;
       this.currentOnchainRiddleIndex = null;
-      this.logger.log('Liste des énigmes utilisées réinitialisée');
+      
+      // Réinitialiser les énigmes résolues et les statistiques
+      this.solvedRiddles.clear();
+      this.gameStats = {
+        totalRiddlesSolved: 0,
+        onchainRiddlesSolved: 0,
+        localRiddlesSolved: 0,
+        startTime: new Date(),
+        lastSolvedTime: null,
+        playerStats: new Map<string, { victories: number, lastVictory: Date }>(),
+      };
+      
+      this.logger.log('Liste des énigmes utilisées et statistiques réinitialisées');
       
       // Définir la première énigme du tableau sur la blockchain
       const firstRiddleIndex = 0; // Toujours commencer par la première énigme
@@ -714,15 +681,36 @@ export class RiddlesService implements OnModuleInit {
       if (success) {
         this.logger.log(`Jeu réinitialisé avec succès! Première énigme définie: "${this.riddlesWithHash[firstRiddleIndex].text}"`);
         
-        // Mettre à jour les indices pour éviter de répéter la première énigme immédiatement
-        this.lastProposedRiddleIndex = firstRiddleIndex;
-        this.currentOnchainRiddleIndex = firstRiddleIndex;
-        this.usedRiddleIndices.add(firstRiddleIndex);
+        // Publier l'événement de réinitialisation du jeu
+        await this.pubSub.publish('gameReset', { 
+          gameReset: true 
+        });
         
-        // Notifier du succès de la réinitialisation
-        this.socketService.emitBlockchainSuccess('Le jeu a été réinitialisé avec succès!');
+        // Créer l'objet de la nouvelle énigme
+        const newRiddle = {
+          id: 'onchain',
+          question: this.riddlesWithHash[firstRiddleIndex].text,
+          solved: false,
+          onchain: true
+        };
+        
+        // Publier l'événement de nouvelle énigme via GraphQL
+        await this.pubSub.publish('newRiddle', { 
+          newRiddle: newRiddle
+        });
+        
+        // Envoyer la nouvelle énigme à tous les joueurs via Socket.IO
+        console.log('Envoi de la nouvelle énigme à tous les joueurs via Socket.IO après réinitialisation...');
+        this.socketService.emitNewRiddle({
+          id: newRiddle.id,
+          question: newRiddle.question
+        });
+        console.log('Nouvelle énigme après réinitialisation envoyée avec succès via Socket.IO');
+        
+        return true;
       } else {
         this.logger.error('Erreur lors de la réinitialisation du jeu');
+        return false;
       }
       
       return success;

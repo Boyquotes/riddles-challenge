@@ -1,6 +1,22 @@
 import { Field, ObjectType } from '@nestjs/graphql';
 
 /**
+ * Modèle pour les statistiques de jeu
+ * Contient le nombre d'énigmes résolues et d'autres métriques
+ */
+@ObjectType()
+export class GameStats {
+  @Field(() => Number)
+  totalRiddlesSolved: number;
+
+  @Field(() => Number)
+  onchainRiddlesSolved: number;
+
+  @Field(() => Number)
+  localRiddlesSolved: number;
+}
+
+/**
  * Modèle pour les statistiques de fin de jeu
  * Contient le nombre de victoires pour chaque joueur connecté
  */
@@ -11,6 +27,9 @@ export class GameOverStats {
 
   @Field(() => [PlayerStat])
   playerStats: PlayerStat[];
+  
+  @Field(() => GameStats, { nullable: true })
+  stats?: GameStats;
 }
 
 /**

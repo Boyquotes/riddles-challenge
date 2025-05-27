@@ -1,4 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ethers } from 'ethers';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SocketService } from './socket.service';
@@ -31,7 +32,8 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
   
   constructor(
     private readonly eventEmitter: EventEmitter2,
-    private readonly socketService: SocketService
+    private readonly socketService: SocketService,
+    private readonly moduleRef: ModuleRef,
   ) {
     // Test d'émission d'erreur blockchain après 10 secondes
     // setTimeout(() => {
@@ -168,19 +170,25 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
             this.logger.log('Réponse correcte détectée, envoi de notification de succès aux clients');
             this.socketService.emitBlockchainSuccess('Riddle solved!');
             
-            // Planifier la définition de la prochaine énigme après 5 secondes
-            this.logger.log('Planification de la définition de la prochaine énigme dans 5 secondes...');
-            console.log('=== PLANIFICATION DE LA PROCHAINE ÉNIGME DANS 5 SECONDES ===');
+            // Planifier la définition de la prochaine énigme après 2 secondes
+            this.logger.log('Planification de la définition de la prochaine énigme dans 2 secondes...');
+            console.log('=== PLANIFICATION DE LA PROCHAINE ÉNIGME DANS 2 SECONDES ===');
+            console.log('Gagnant de l\'\u00e9nigme actuelle:', user);
             
             setTimeout(() => {
-              this.logger.log('Délai de 2 secondes écoulé, appel de setRandomRiddle...');
-              console.log('=== DÉLAI DE 2 SECONDES ÉCOULÉ, DÉFINITION DE LA NOUVELLE ÉNIGME ===');
+              this.logger.log('Délai de 2 secondes écoulé, émission de l\'\u00e9vénement riddle.setNext...');
+              console.log('=== DÉLAI DE 2 SECONDES ÉCOULÉ, ÉMISSION DE L\'\u00c9VÉNEMENT riddle.setNext ===');
               
               // Émettre un événement pour que le service Riddles puisse définir la prochaine énigme
-              this.eventEmitter.emit('riddle.setNext', { 
+              const payload = { 
                 timestamp: new Date().toISOString(),
-                source: 'answerAttemptListener'
-              });
+                source: 'answerAttemptListener',
+                winner: user
+              };
+              
+              console.log('Payload de l\'\u00e9vénement riddle.setNext:', payload);
+              this.eventEmitter.emit('riddle.setNext', payload);
+              console.log('\u00c9vénement riddle.setNext émis avec succès');
             }, 2000); // 2 secondes de délai
           } else {
             this.logger.log('Réponse incorrecte détectée, envoi de notification aux clients');
@@ -461,14 +469,53 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
       console.log('=== DÉBUT DE LA MÉTHODE setRiddle ===');
       console.log(`Tentative de définition de l'énigme: "${riddle}"`);
       console.log(`Hash de réponse fourni: ${answerHash}`);
-      console.log(`Clé privée fournie: ${walletKey ? 'Oui (masquée)' : 'Non'}`);
+
+      // Vérifier si une énigme est déjà active sur la blockchain
+      console.log('Vérification si une énigme est déjà active...');
+      
+      // Récupérer les détails complets de l'énigme (texte, statut actif, gagnant)
+      const riddleDetails = await this.getRiddle();
+      
+      // Vérifier si l'énigme est active ET n'a pas encore de gagnant
+      if (riddleDetails.question && riddleDetails.isActive && riddleDetails.winner === ethers.ZeroAddress) {
+        console.log(`Une énigme est déjà active et non résolue: "${riddleDetails.question}"`);
+        console.log(`Statut actif: ${riddleDetails.isActive}, Gagnant: ${riddleDetails.winner}`);
+        console.log('=== FIN DE LA MÉTHODE setRiddle (ÉNIGME DÉJÀ ACTIVE ET NON RÉSOLUE) ===');
+        this.logger.log('Une énigme active et non résolue existe déjà sur la blockchain, pas besoin d\'en définir une nouvelle');
+        return true; // Retourner true car il n'y a pas d'erreur, simplement pas besoin de définir une nouvelle énigme
+      }
+      
+      // Vérifier si toutes les énigmes ont été résolues
+      // Accéder au service des énigmes via l'injection de dépendance
+      const riddlesService = this.moduleRef.get('RiddlesService', { strict: false });
+      if (riddlesService && await riddlesService.checkAllRiddlesSolved()) {
+        console.log('Toutes les énigmes ont été résolues. Émission d\'un événement de fin de jeu.');
+        
+        // Envoyer un message via Socket.IO pour informer les joueurs
+        if (this.socketService) {
+          this.socketService.emitBlockchainSuccess('Félicitations ! Vous avez résolu toutes les énigmes. Le jeu est terminé.');
+        }
+        
+        return true; // Ne pas définir de nouvelle énigme car le jeu est terminé
+      }
+      
+      // Si l'énigme a été résolue (a un gagnant) ou n'est plus active, on peut en définir une nouvelle
+      if (riddleDetails.question) {
+        console.log(`L'énigme précédente a été résolue ou n'est plus active:`);
+        console.log(`- Texte: "${riddleDetails.question}"`);
+        console.log(`- Statut actif: ${riddleDetails.isActive}`);
+        console.log(`- Gagnant: ${riddleDetails.winner}`);
+      }
+      
+      console.log('Aucune énigme active trouvée, définition d\'une nouvelle énigme...');
       
       // Vérifier le mode réseau et les paramètres de configuration
+      const walletKey = process.env.PRIVATE_KEY || 'non défini';
       const networkMode = process.env.NETWORK_MODE || 'testnet';
       const contractAddress = process.env.CONTRACT_ADDRESS || 'non défini';
-      const chainId = process.env.ACTIVE_CHAIN_ID || 'non défini';
-      const rpcUrl = process.env.ACTIVE_RPC_URL || 'non défini';
-      
+      const chainId = ACTIVE_CHAIN_ID || 'non défini';
+      const rpcUrl = ACTIVE_RPC_URL || 'non défini';
+      console.log(`Clé privée fournie: ${walletKey ? 'Oui (masquée)' : 'Non'}`);
       console.log('=== CONFIGURATION RÉSEAU ===');
       console.log(`Mode réseau: ${networkMode}`);
       console.log(`Adresse du contrat: ${contractAddress}`);
@@ -605,6 +652,8 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
    * @returns true si l'énigme a été définie avec succès, false sinon
    */
   async setNextRiddle(nextRiddles: Array<{ text: string, answer: string }>, walletKey?: string): Promise<boolean> {
+    console.log('=== DÉBUT DE LA DÉFINITION DE LA PROCHAINE ÉNIGME ===');
+    console.log('=== ÉNIGMES DISPONIBLES ===', nextRiddles);
     try {
       // Vérifier s'il y a des énigmes disponibles
       if (!nextRiddles || nextRiddles.length === 0) {
@@ -620,18 +669,113 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
       const answerBytes = ethers.toUtf8Bytes(selectedRiddle.answer);
       const answerHash = ethers.keccak256(answerBytes);
       
-      // Définir l'énigme dans le contrat
-      const success = await this.setRiddle(selectedRiddle.text, answerHash, walletKey);
+      // Récupérer l'état actuel de l'énigme
+      const riddleDetails = await this.getRiddle();
       
-      if (success) {
-        this.logger.log(`Prochaine énigme définie avec succès: "${selectedRiddle.text}"`);
-        // Émettre une notification via Socket.IO
-        this.socketService.emitBlockchainSuccess('Nouvelle énigme définie sur la blockchain!');
+      // Vérifier si une énigme est déjà active et non résolue
+      if (riddleDetails.isActive && riddleDetails.winner === ethers.ZeroAddress) {
+        console.log(`Une énigme est déjà active et non résolue: "${riddleDetails.question}"`);
+        console.log(`Statut actif: ${riddleDetails.isActive}, Gagnant: ${riddleDetails.winner}`);
+        console.log('=== FIN DE LA MÉTHODE setNextRiddle (ÉNIGME DÉJÀ ACTIVE ET NON RÉSOLUE) ===');
+        this.logger.log('Une énigme active et non résolue existe déjà sur la blockchain, pas besoin d\'en définir une nouvelle');
+        return true; // Retourner true car il n'y a pas d'erreur, simplement pas besoin de définir une nouvelle énigme
       }
       
-      return success;
+      console.log('Aucune énigme active trouvée, définition d\'une nouvelle énigme...');
+      
+      // Vérifier le mode réseau et les paramètres de configuration
+      const privateKey = walletKey || process.env.PRIVATE_KEY;
+      const networkMode = process.env.NETWORK_MODE || 'testnet';
+      const contractAddress = process.env.CONTRACT_ADDRESS || 'non défini';
+      const chainId = ACTIVE_CHAIN_ID || 'non défini';
+      const rpcUrl = ACTIVE_RPC_URL || 'non défini';
+      console.log(`Clé privée fournie: ${privateKey ? 'Oui (masquée)' : 'Non'}`);
+      console.log('=== CONFIGURATION RÉSEAU ===');
+      console.log(`Mode réseau: ${networkMode}`);
+      console.log(`Adresse du contrat: ${contractAddress}`);
+      console.log(`Chain ID: ${chainId}`);
+      console.log(`RPC URL: ${rpcUrl}`);
+      
+      // Si une clé de portefeuille est fournie, l'utiliser pour créer un signataire
+      // Sinon, simuler l'opération en mode local
+      let signer;
+      if (privateKey) {
+        console.log('Utilisation de la clé privée fournie pour créer un signataire');
+        signer = new ethers.Wallet(privateKey, this.provider);
+        console.log(`Adresse du signataire: ${signer.address}`);
+      } else {
+        // En mode local ou pour les tests, on peut utiliser un portefeuille aléatoire
+        this.logger.warn('Aucune clé de portefeuille fournie, utilisation d\'un portefeuille aléatoire (mode local uniquement)');
+        console.log('ATTENTION: Création d\'un portefeuille aléatoire (ne fonctionnera qu\'en mode local)');
+        signer = ethers.Wallet.createRandom().connect(this.provider);
+        console.log(`Adresse du portefeuille aléatoire: ${signer.address}`);
+      }
+      
+      // Vérifier le solde du signataire
+      try {
+        const balance = await this.provider.getBalance(signer.address);
+        console.log(`Solde du signataire: ${ethers.formatEther(balance)} ETH`);
+        if (balance.toString() === '0') {
+          console.log('AVERTISSEMENT: Le signataire n\'a pas de fonds pour payer les frais de transaction!');
+        }
+      } catch (balanceError) {
+        console.error('Erreur lors de la vérification du solde:', balanceError);
+      }
+      
+      // Créer une instance de contrat avec le signataire
+      console.log('Connexion du contrat avec le signataire...');
+      const contractWithSigner = this.contract.connect(signer) as unknown as OnchainRiddleContract;
+      
+      // Vérifier si le hash est au bon format (bytes32)
+      let formattedAnswerHash = answerHash;
+      if (!answerHash.startsWith('0x')) {
+        console.log('Ajout du préfixe 0x au hash de réponse');
+        formattedAnswerHash = '0x' + answerHash;
+      }
+      
+      // S'assurer que la longueur est correcte pour bytes32
+      if (formattedAnswerHash.length !== 66) { // '0x' + 64 caractères
+        const errorMsg = 'Le hash de la réponse doit être au format bytes32 (32 octets)';
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+      
+      console.log(`Hash de réponse formaté: ${formattedAnswerHash}`);
+      
+      // Définir l'énigme dans le contrat
+      console.log('Envoi de la transaction setRiddle au contrat...');
+      const tx = await contractWithSigner.setRiddle(selectedRiddle.text, formattedAnswerHash);
+      console.log(`Transaction envoyée avec succès! Hash de transaction: ${tx.hash}`);
+      
+      // Attendre que la transaction soit minée
+      console.log('Attente de la confirmation de la transaction...');
+      const receipt = await tx.wait();
+      console.log('Transaction confirmée!');
+      console.log(`Statut de la transaction: ${receipt.status}`);
+      console.log(`Bloc: ${receipt.blockNumber}`);
+      console.log(`Gas utilisé: ${receipt.gasUsed.toString()}`);
+      
+      // Vérifier si la transaction a réussi
+      if (receipt && receipt.status === 1) {
+        const successMsg = `Énigme définie avec succès: "${selectedRiddle.text}" avec le hash de réponse: ${formattedAnswerHash}`;
+        this.logger.log(successMsg);
+        console.log(successMsg);
+        console.log('=== FIN DE LA MÉTHODE setNextRiddle (SUCCÈS) ===');
+        
+        // Émettre une notification via Socket.IO
+        this.socketService.emitBlockchainSuccess('Nouvelle énigme définie sur la blockchain!');
+        
+        return true;
+      }
+      
+      console.log('Transaction confirmée mais avec un statut d\'échec');
+      console.log('=== FIN DE LA MÉTHODE setNextRiddle (ÉCHEC) ===');
+      return false;
     } catch (error) {
       this.logger.error('Erreur lors de la définition de la prochaine énigme:', error);
+      console.error('=== ERREUR DANS LA MÉTHODE setNextRiddle ===');
+      console.error(`Message d'erreur: ${error.message}`);
+      console.error(`Stack trace: ${error.stack}`);
       return false;
     }
   }

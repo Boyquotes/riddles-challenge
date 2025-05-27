@@ -1,5 +1,6 @@
-import { ApolloClient, InMemoryCache, HttpLink, split, NormalizedCacheObject } from '@apollo/client';
+import { ApolloClient, InMemoryCache, HttpLink, split, NormalizedCacheObject, from } from '@apollo/client';
 import { GraphQLWsLink } from '@apollo/client/link/subscriptions';
+import { onError } from '@apollo/client/link/error';
 import { getMainDefinition } from '@apollo/client/utilities';
 import { createClient } from 'graphql-ws';
 
@@ -39,14 +40,46 @@ function createApolloClient() {
       )
     : httpLink;
 
+  // Créer un gestionnaire d'erreurs pour les liens
+  const errorLink = onError((error) => {
+    // Éviter que les erreurs ne remontent jusqu'aux stack frames de Next.js
+    const { graphQLErrors, networkError } = error;
+    
+    if (graphQLErrors) {
+      graphQLErrors.forEach(({ message, locations, path }) => {
+        console.error(
+          `[GraphQL error]: Message: ${message}, Location: ${locations ? JSON.stringify(locations) : 'unknown'}, Path: ${path ? path?.join('.') : 'unknown'}`,
+        );
+      });
+    }
+    if (networkError) {
+      console.error(`[Network error]: ${networkError.message}`);
+    }
+  });
+
+  // Combiner avec les autres liens
+  const combinedLink = typeof window !== 'undefined' && wsLink != null
+    ? from([errorLink, split(
+        ({ query }) => {
+          const definition = getMainDefinition(query);
+          return (
+            definition.kind === 'OperationDefinition' &&
+            definition.operation === 'subscription'
+          );
+        },
+        wsLink,
+        httpLink
+      )])
+    : from([errorLink, httpLink]);
+
   return new ApolloClient({
     ssrMode: typeof window === 'undefined', // Set to true for SSR
-    link,
+    link: combinedLink,
     cache: new InMemoryCache(),
     defaultOptions: {
       watchQuery: {
         fetchPolicy: 'no-cache',
-        errorPolicy: 'ignore',
+        errorPolicy: 'all', // Changer de 'ignore' à 'all' pour traiter les erreurs
       },
       query: {
         fetchPolicy: 'no-cache',

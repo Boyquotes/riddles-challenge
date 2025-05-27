@@ -3,6 +3,7 @@ import { RiddlesService } from './riddles.service';
 import { Riddle } from './models/riddle.model';
 import { RiddleSolvedResponse } from './models/riddle-solved.model';
 import { MetaMaskTransaction } from './models/metamask-transaction.model';
+import { GameOverStats } from './models/game-over-stats.model';
 import { Inject } from '@nestjs/common';
 import { PUB_SUB } from '../common/constants';
 import { PubSub } from 'graphql-subscriptions';
@@ -40,13 +41,33 @@ export class RiddlesResolver {
     if (isCorrect) {
       // Publier immédiatement l'événement de résolution avec la réponse actuelle
       // La nouvelle énigme sera définie automatiquement après un délai par le service
-      const currentRiddle = await this.riddlesService.getRiddle(id);
-      this.pubSub.publish('riddleSolved', { 
-        riddleSolved: {
-          solvedBy: playerId,
-          newRiddle: currentRiddle,
+      try {
+        const currentRiddle = await this.riddlesService.getRiddle(id);
+        
+        // S'assurer que l'objet riddle est conforme au modèle GraphQL
+        // en incluant toutes les propriétés requises
+        if (currentRiddle) {
+          // Créer un nouvel objet Riddle complet avec toutes les propriétés requises
+          const completeRiddle: Riddle = {
+            id: currentRiddle.id || 'unknown',
+            question: currentRiddle.question || 'Question non disponible',
+            solved: currentRiddle.solved !== undefined ? currentRiddle.solved : true,
+            answer: currentRiddle.answer || '',
+            onchain: currentRiddle.onchain !== undefined ? currentRiddle.onchain : false
+          };
+          
+          console.log('Publication de l\'énigme résolue avec les données complètes:', JSON.stringify(completeRiddle));
+          
+          this.pubSub.publish('riddleSolved', { 
+            riddleSolved: {
+              solvedBy: playerId,
+              newRiddle: completeRiddle
+            }
+          });
         }
-      });
+      } catch (error) {
+        console.error('Erreur lors de la publication GraphQL après vérification de réponse:', error);
+      }
     }
     
     return isCorrect;
@@ -67,15 +88,28 @@ export class RiddlesResolver {
     
     if (success) {
       // Récupérer la nouvelle énigme pour la publier via GraphQL subscription
-      const newRiddle = await this.riddlesService.getRiddle('onchain');
-      
-      // Publier l'événement pour les abonnés GraphQL
-      this.pubSub.publish('riddleSolved', { 
-        riddleSolved: {
-          solvedBy: 'system', // Indiquer que c'est le système qui a défini la nouvelle énigme
-          newRiddle,
+      try {
+        const newRiddle = await this.riddlesService.getRiddle('onchain');
+        
+        // S'assurer que l'objet riddle est conforme au modèle GraphQL
+        if (newRiddle) {
+          // Vérifier que toutes les propriétés requises sont présentes
+          const riddleWithSolved = newRiddle as Riddle & { solved?: boolean };
+          if (riddleWithSolved.solved === undefined) {
+            riddleWithSolved.solved = false; // Nouvelle énigme, donc non résolue
+          }
+          
+          // Publier l'événement pour les abonnés GraphQL
+          this.pubSub.publish('riddleSolved', { 
+            riddleSolved: {
+              solvedBy: 'system', // Indiquer que c'est le système qui a défini la nouvelle énigme
+              newRiddle
+            }
+          });
         }
-      });
+      } catch (error) {
+        console.error('Erreur lors de la publication GraphQL après définition d\'une énigme spécifique:', error);
+      }
     }
     
     return success;
@@ -87,15 +121,28 @@ export class RiddlesResolver {
     
     if (success) {
       // Récupérer la nouvelle énigme pour la publier via GraphQL subscription
-      const newRiddle = await this.riddlesService.getRiddle('onchain');
-      
-      // Publier l'événement pour les abonnés GraphQL
-      this.pubSub.publish('riddleSolved', { 
-        riddleSolved: {
-          solvedBy: 'system', // Indiquer que c'est le système qui a réinitialisé le jeu
-          newRiddle,
+      try {
+        const newRiddle = await this.riddlesService.getRiddle('onchain');
+        
+        // S'assurer que l'objet riddle est conforme au modèle GraphQL
+        if (newRiddle) {
+          // Vérifier que toutes les propriétés requises sont présentes
+          const riddleWithSolved = newRiddle as Riddle & { solved?: boolean };
+          if (riddleWithSolved.solved === undefined) {
+            riddleWithSolved.solved = false; // Nouvelle énigme après réinitialisation, donc non résolue
+          }
+          
+          // Publier l'événement pour les abonnés GraphQL
+          this.pubSub.publish('riddleSolved', { 
+            riddleSolved: {
+              solvedBy: 'system', // Indiquer que c'est le système qui a réinitialisé le jeu
+              newRiddle
+            }
+          });
         }
-      });
+      } catch (error) {
+        console.error('Erreur lors de la publication GraphQL après réinitialisation du jeu:', error);
+      }
     }
     
     return success;
@@ -106,5 +153,10 @@ export class RiddlesResolver {
   })
   riddleSolved() {
     return this.pubSub.asyncIterator('riddleSolved');
+  }
+  
+  @Query(() => GameOverStats)
+  async gameOverStats(): Promise<GameOverStats> {
+    return this.riddlesService.getGameOverStats();
   }
 }
