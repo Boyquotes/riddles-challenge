@@ -113,14 +113,31 @@ export class RiddlesService implements OnModuleInit {
    * Cet événement est émis par le service Ethereum lorsqu'une réponse correcte est détectée
    */
   @OnEvent('riddle.setNext')
-  handleSetNextRiddle(payload: { timestamp: string; source: string }) {
+  async handleSetNextRiddle(payload: { timestamp: string; source: string }) {
     this.logger.log(`Événement riddle.setNext reçu depuis ${payload.source} à ${payload.timestamp}`);
     console.log(`=== ÉVÉNEMENT riddle.setNext REÇU ===`);
     console.log(`Source: ${payload.source}`);
     console.log(`Timestamp: ${payload.timestamp}`);
     
-    // Définir une énigme aléatoire sur la blockchain
-    this.setRandomRiddleOnchain();
+    // Vérifier si nous sommes en état de game over
+    try {
+      // Récupérer l'énigme actuelle
+      const currentRiddle = await this.getRiddle('onchain');
+      
+      // Si l'énigme actuelle est 'game_over', ne pas définir de nouvelle énigme
+      if (currentRiddle && currentRiddle.id === 'game_over') {
+        console.log('Le jeu est en état de game over, aucune nouvelle énigme ne sera définie automatiquement');
+        this.logger.log('Game over: en attente de la réinitialisation manuelle par l\'utilisateur');
+        return;
+      }
+      
+      // Définir une énigme aléatoire sur la blockchain
+      await this.setRandomRiddleOnchain();
+    } catch (error) {
+      this.logger.error('Erreur lors de la vérification de l\'\u00e9tat du jeu:', error);
+      // En cas d'erreur, essayer quand même de définir une nouvelle énigme
+      await this.setRandomRiddleOnchain();
+    }
   }
   
   /**
@@ -184,9 +201,9 @@ export class RiddlesService implements OnModuleInit {
           }
         });
         
-        // Réinitialiser la liste des énigmes utilisées pour le prochain cycle
-        this.usedRiddleIndices.clear();
-        console.log('Liste des énigmes utilisées réinitialisée pour le prochain cycle');
+        // Ne pas réinitialiser la liste des énigmes utilisées ici
+        // Nous attendons que l'utilisateur clique sur le bouton de réinitialisation
+        console.log('Game over: en attente de la réinitialisation manuelle par l\'utilisateur');
         
         // Retourner true pour indiquer que le traitement s'est bien déroulé
         return true;
@@ -677,21 +694,35 @@ export class RiddlesService implements OnModuleInit {
   }
   
   /**
-   * Réinitialise le jeu en définissant la première énigme du tableau riddlesWithHash
-   * @returns true si la réinitialisation a réussi, false sinon
+   * Réinitialise le jeu à la première énigme
+   * @returns Une promesse qui se résout à true si le jeu a été réinitialisé avec succès, false sinon
    */
   async resetGame(): Promise<boolean> {
     try {
-      this.logger.log('Réinitialisation du jeu avec la première énigme...');
+      this.logger.log('Réinitialisation du jeu...');
       
-      // Utiliser la méthode existante pour définir la première énigme (index 0)
-      const success = await this.setSpecificRiddleOnchain(0);
+      // Réinitialiser la liste des énigmes utilisées
+      this.usedRiddleIndices.clear();
+      this.lastProposedRiddleIndex = null;
+      this.currentOnchainRiddleIndex = null;
+      this.logger.log('Liste des énigmes utilisées réinitialisée');
+      
+      // Définir la première énigme du tableau sur la blockchain
+      const firstRiddleIndex = 0; // Toujours commencer par la première énigme
+      const success = await this.setSpecificRiddleOnchain(firstRiddleIndex);
       
       if (success) {
-        this.logger.log('Jeu réinitialisé avec succès!');
+        this.logger.log(`Jeu réinitialisé avec succès! Première énigme définie: "${this.riddlesWithHash[firstRiddleIndex].text}"`);
+        
+        // Mettre à jour les indices pour éviter de répéter la première énigme immédiatement
+        this.lastProposedRiddleIndex = firstRiddleIndex;
+        this.currentOnchainRiddleIndex = firstRiddleIndex;
+        this.usedRiddleIndices.add(firstRiddleIndex);
         
         // Notifier du succès de la réinitialisation
         this.socketService.emitBlockchainSuccess('Le jeu a été réinitialisé avec succès!');
+      } else {
+        this.logger.error('Erreur lors de la réinitialisation du jeu');
       }
       
       return success;
