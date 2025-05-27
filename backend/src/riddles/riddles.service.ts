@@ -95,11 +95,29 @@ export class RiddlesService implements OnModuleInit {
           
           // Ajouter également cet index aux énigmes utilisées
           this.usedRiddleIndices.add(riddleIndex);
+          console.log(`Ajout de l'index ${riddleIndex} à la liste des énigmes utilisées`);
+          console.log(`Énigmes utilisées après ajout: ${Array.from(this.usedRiddleIndices).join(', ')}`);
+          console.log(`Nombre d'énigmes utilisées: ${this.usedRiddleIndices.size}/${this.riddlesWithHash.length}`);
         } else {
           this.logger.warn(`L'énigme actuelle n'a pas été trouvée dans notre tableau d'énigmes`);
         }
       } else {
         this.logger.log('Aucune énigme actuellement définie sur la blockchain');
+        
+        // Aucune énigme n'est définie sur la blockchain, définir la première énigme
+        this.logger.log('Définition de la première énigme sur la blockchain...');
+        try {
+          // La méthode setRandomRiddleOnchain ajoutera automatiquement l'index de l'énigme à usedRiddleIndices
+          const result = await this.setRandomRiddleOnchain();
+          if (result) {
+            this.logger.log('Première énigme définie avec succès sur la blockchain');
+            this.logger.log(`Énigmes utilisées après initialisation: ${Array.from(this.usedRiddleIndices).join(', ')}`);
+          } else {
+            this.logger.warn('Échec de la définition de la première énigme sur la blockchain');
+          }
+        } catch (error) {
+          this.logger.error('Erreur lors de la définition de la première énigme sur la blockchain:', error);
+        }
       }
     } catch (error) {
       this.logger.error('Erreur lors de la récupération de l\'\u00e9nigme actuelle:', error);
@@ -149,6 +167,41 @@ export class RiddlesService implements OnModuleInit {
     try {
       console.log('=== DÉBUT DE LA MÉTHODE setRandomRiddleOnchain ===');
       console.log(`Énigmes déjà utilisées: ${Array.from(this.usedRiddleIndices).join(', ')}`);
+      
+      // Vérifier si une énigme est déjà active sur la blockchain
+      try {
+        const currentRiddleInfo = await this.ethereumService.getRiddle();
+        
+        // Vérifier si l'énigme est active et n'a pas encore de gagnant
+        // L'adresse du gagnant est l'adresse zéro (0x000...000) quand il n'y a pas de gagnant
+        if (currentRiddleInfo.isActive && 
+            (currentRiddleInfo.winner === '0x0000000000000000000000000000000000000000' || 
+             !currentRiddleInfo.winner || 
+             currentRiddleInfo.winner === '0x')) {
+          const msg = 'Une énigme est déjà active sur la blockchain et n\'a pas encore été résolue';
+          this.logger.log(msg);
+          console.log(msg);
+          console.log(`Énigme active: "${currentRiddleInfo.question}"`); 
+          
+          // Trouver l'index de l'énigme active dans notre tableau
+          const activeRiddleIndex = this.riddlesWithHash.findIndex(r => r.text === currentRiddleInfo.question);
+          
+          if (activeRiddleIndex !== -1) {
+            // Ajouter l'index de l'énigme active à la liste des énigmes utilisées
+            this.usedRiddleIndices.add(activeRiddleIndex);
+            this.lastProposedRiddleIndex = activeRiddleIndex;
+            this.currentOnchainRiddleIndex = activeRiddleIndex;
+            console.log(`Énigme active trouvée à l'index ${activeRiddleIndex}, ajoutée à la liste des énigmes utilisées`);
+            console.log(`Énigmes utilisées après ajout: ${Array.from(this.usedRiddleIndices).join(', ')}`);
+          } else {
+            console.log(`Attention: L'énigme active "${currentRiddleInfo.question}" n'a pas été trouvée dans notre tableau d'énigmes`);
+          }
+          
+          return true; // Retourner true car il n'y a pas d'erreur, c'est juste qu'une énigme est déjà active
+        }
+      } catch (error) {
+        this.logger.warn('Erreur lors de la vérification de l\'\u00e9nigme actuelle, continuation du processus:', error);
+      }
       
       // Vérifier si nous avons une clé privée pour signer la transaction
       const privateKey = process.env.PRIVATE_KEY;
@@ -256,6 +309,13 @@ export class RiddlesService implements OnModuleInit {
       // Ajouter l'index à la liste des indices utilisés
       this.usedRiddleIndices.add(selectedIndex);
       console.log(`Ajout de l'index ${selectedIndex} à la liste des énigmes utilisées`);
+      console.log(`Énigmes utilisées après ajout: ${Array.from(this.usedRiddleIndices).join(', ')}`);
+      console.log(`Nombre d'énigmes utilisées: ${this.usedRiddleIndices.size}/${this.riddlesWithHash.length}`);
+      
+      // Vérifier si nous approchons de la fin du jeu
+      if (this.usedRiddleIndices.size === this.riddlesWithHash.length - 1) {
+        console.log('Attention: Il ne reste qu\'une seule énigme disponible!');
+      }
       
       console.log(`Énigme aléatoire sélectionnée: index=${selectedIndex}`);
       console.log(`Texte: "${selectedRiddle.text}"`);
@@ -544,8 +604,6 @@ export class RiddlesService implements OnModuleInit {
           };
           
           console.log('Notification de tous les clients connectés via Socket.IO...');
-          // Notifier tous les clients connectés de la nouvelle énigme
-          this.socketService.emitNewRiddle(newRiddle);
           
           console.log('Notification de succès envoyée aux clients');
           // Notifier également du succès de l'opération

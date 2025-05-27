@@ -5,7 +5,6 @@ import { useQuery, useMutation } from "@apollo/client";
 import { GET_RANDOM_RIDDLE, CHECK_ANSWER, RIDDLE_SOLVED_SUBSCRIPTION } from "@/graphql/queries";
 import { getSocketClient } from "@/lib/socket-client";
 import MetaMaskButton from "@/components/MetaMaskButton";
-import SetNewRiddleButton from "@/components/SetNewRiddleButton";
 import ResetGameButton from "@/components/ResetGameButton";
 
 export default function Home() {
@@ -19,7 +18,6 @@ export default function Home() {
   const [duplicateAnswer, setDuplicateAnswer] = useState({ playerNumber: 0, answer: "", visible: false });
   const [blockchainError, setBlockchainError] = useState({ message: "", visible: false });
   const [blockchainSuccess, setBlockchainSuccess] = useState({ message: "", visible: false });
-  const [riddleSolved, setRiddleSolved] = useState(false);
   const [riddleIndex, setRiddleIndex] = useState(0);
   const [nextRiddleLoading, setNextRiddleLoading] = useState(false);
   const [nextRiddleCountdown, setNextRiddleCountdown] = useState(0);
@@ -68,7 +66,6 @@ export default function Home() {
           question: data.question
         });
         setSolvedBy(data.solvedBy);
-        setRiddleSolved(false);
         
         console.log(`Updated riddle state: id=${data.id}, question="${data.question}", solvedBy=${data.solvedBy}`);
         
@@ -221,9 +218,6 @@ export default function Home() {
           console.log('Énigme définie par le système, pas de compte à rebours nécessaire');
         }
         
-        // Set riddleSolved to true to show the SetNewRiddleButton
-        setRiddleSolved(true);
-        
         // Increment the riddle index for the next riddle (cycling through available riddles)
         setRiddleIndex((prevIndex) => (prevIndex + 1) % 5);
         
@@ -254,8 +248,8 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-indigo-950 p-4">
-      <main className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 space-y-6">
+    <div className="flex flex-col items-center justify-center min-h-screen app-container p-4">
+      <main className="w-full max-w-md main-card space-y-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Riddle Game</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">{playerCount} player{playerCount !== 1 ? 's' : ''} online</p>
@@ -266,7 +260,7 @@ export default function Home() {
             {riddle.id === 'game_over' ? 'Game Over' : 'Riddle'}
           </h2>
           
-          {solvedBy && (
+          {solvedBy && !blockchainSuccess && (
             <div className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 p-3 rounded-md text-center text-sm">
               {solvedBy === playerId ? 'You solved the riddle!' : solvedBy === 'system' ? 'A new riddle has been set!' : 'Someone solved the riddle!'}
             </div>
@@ -309,35 +303,25 @@ export default function Home() {
           <MetaMaskButton 
             riddleId={riddle.id} 
             answer={answer}
-            onSuccess={() => {
-              setMessage("Réponse soumise à la blockchain!");
-              // Set riddleSolved to true when a riddle is solved via MetaMask
-              setRiddleSolved(true);
-              // Increment the riddle index for the next riddle
-              setRiddleIndex((prevIndex) => (prevIndex + 1) % 5);
+            onSuccess={(hideMessage) => {
+              if (hideMessage) {
+                // Effacer le message après 2 secondes
+                setMessage("");
+              } else {
+                // Afficher le message de succès
+                setMessage("Réponse soumise à la blockchain!");
+                // Increment the riddle index for the next riddle
+                setRiddleIndex((prevIndex) => (prevIndex + 1) % 5);
+              }
             }} 
             onError={(error) => setMessage(`Erreur: ${error}`)} 
           />
         </form>
         
-        {/* Show SetNewRiddleButton when a riddle is solved */}
-        {riddleSolved && (
-          <SetNewRiddleButton 
-            riddleIndex={riddleIndex}
-            onSuccess={() => {
-              setMessage("Nouvelle énigme définie avec succès sur la blockchain!");
-              setRiddleSolved(false);
-            }}
-            onError={(error) => setMessage(`Erreur: ${error}`)}
-          />
-        )}
-        
         {/* Show ResetGameButton when all riddles are solved (game_over state) */}
         {riddle.id === 'game_over' && (
           <ResetGameButton 
-            onSuccess={() => {
-              setMessage("Le jeu a été réinitialisé avec succès!");
-            }}
+            onSuccess={() => {}}
             onError={(error) => setMessage(`Erreur: ${error}`)}
           />
         )}
@@ -374,22 +358,7 @@ export default function Home() {
       </main>
       
       <footer className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
-        <p>Riddle Game - Real-time on-chain multiplayer</p>
-        
-        {/* Test button for debugging - only visible in development */}
-        {/* <button 
-          onClick={() => {
-            setBlockchainError({
-              message: "[Test] Tentative de préparation d'une transaction pour une énigme inactive",
-              visible: true
-            });
-            setTimeout(() => {
-              setBlockchainError(prev => ({ ...prev, visible: false }));
-            }, 7000);
-          }}
-          className="mt-4 px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs rounded">
-          Test Blockchain Error
-        </button> */}
+        <p>Zama Riddle Game - Real-time on-chain multiplayer</p>
       </footer>
     </div>
   );

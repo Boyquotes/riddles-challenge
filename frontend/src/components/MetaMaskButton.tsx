@@ -6,7 +6,7 @@ import { getSocketClient } from '@/lib/socket-client';
 interface MetaMaskButtonProps {
   riddleId: string;
   answer: string;
-  onSuccess?: () => void;
+  onSuccess?: (hideMessage?: boolean) => void;
   onError?: (error: string) => void;
 }
 
@@ -19,14 +19,11 @@ declare global {
 export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }: MetaMaskButtonProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [account, setAccount] = useState<string | null>(null);
-  const [isOnchainRiddle, setIsOnchainRiddle] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   
   const [prepareTransaction, { loading, error, data }] = useLazyQuery(PREPARE_METAMASK_TRANSACTION);
 
   useEffect(() => {
-    // Check if the riddle is an onchain riddle
-    setIsOnchainRiddle(riddleId === 'onchain');
     
     // Check if MetaMask is installed
     if (typeof window !== 'undefined' && window.ethereum) {
@@ -150,6 +147,12 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
         if (onSuccess) {
           // Show a more generic success message for transaction submission
           onSuccess();
+          
+          // Faire disparaître le message après 2 secondes
+          setTimeout(() => {
+            // Appeler onSuccess avec un paramètre vide pour indiquer de masquer le message
+            onSuccess(true);
+          }, 2000);
         }
       }
     } catch (error: any) {
@@ -230,18 +233,11 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
 
   // Debug logs to check component state
   console.log('MetaMaskButton Render State:', {
-    isOnchainRiddle,
     isConnected,
     account,
     answer,
     isLoading
   });
-
-  // Don't show the button if it's not an onchain riddle
-  if (!isOnchainRiddle) {
-    console.log('Not rendering MetaMaskButton because it\'s not an onchain riddle');
-    return null;
-  }
 
   return (
     <div className="mt-4">
