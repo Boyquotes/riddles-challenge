@@ -451,4 +451,77 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
   }
+
+  /**
+   * Récupère les statistiques des joueurs depuis le contrat
+   * @returns Un objet contenant les statistiques des joueurs (adresse -> nombre de victoires)
+   */
+  async getPlayerStatistics(): Promise<{ [address: string]: number }> {
+    try {
+      // Récupérer l'historique des événements Winner depuis le contrat
+      const filter = this.contract.filters.Winner();
+      const events = await this.contract.queryFilter(filter);
+      
+      // Compter les victoires par adresse
+      const playerStats: { [address: string]: number } = {};
+      
+      for (const event of events) {
+        // Utiliser le type EventLog pour accéder aux arguments
+        const eventLog = event as unknown as ethers.EventLog;
+        if (eventLog && eventLog.args && eventLog.args.length > 0) {
+          const winner = eventLog.args[0] as string;
+          if (winner && winner !== ethers.ZeroAddress) {
+            if (!playerStats[winner]) {
+              playerStats[winner] = 0;
+            }
+            playerStats[winner]++;
+          }
+        }
+      }
+      
+      this.logger.log(`Statistiques des joueurs récupérées: ${JSON.stringify(playerStats)}`);
+      return playerStats;
+    } catch (error) {
+      this.logger.error('Erreur lors de la récupération des statistiques des joueurs:', error);
+      return {};
+    }
+  }
+  
+  /**
+   * Définit la prochaine énigme dans le contrat lorsqu'une énigme est résolue
+   * @param nextRiddles Tableau des prochaines énigmes disponibles
+   * @param walletKey Clé privée du portefeuille pour signer la transaction
+   * @returns true si l'énigme a été définie avec succès, false sinon
+   */
+  async setNextRiddle(nextRiddles: Array<{ text: string, answer: string }>, walletKey?: string): Promise<boolean> {
+    try {
+      // Vérifier s'il y a des énigmes disponibles
+      if (!nextRiddles || nextRiddles.length === 0) {
+        this.logger.warn('Aucune énigme disponible pour définir la prochaine énigme');
+        return false;
+      }
+      
+      // Sélectionner une énigme aléatoire parmi les disponibles
+      const randomIndex = Math.floor(Math.random() * nextRiddles.length);
+      const selectedRiddle = nextRiddles[randomIndex];
+      
+      // Calculer le hash de la réponse
+      const answerBytes = ethers.toUtf8Bytes(selectedRiddle.answer);
+      const answerHash = ethers.keccak256(answerBytes);
+      
+      // Définir l'énigme dans le contrat
+      const success = await this.setRiddle(selectedRiddle.text, answerHash, walletKey);
+      
+      if (success) {
+        this.logger.log(`Prochaine énigme définie avec succès: "${selectedRiddle.text}"`);
+        // Émettre une notification via Socket.IO
+        this.socketService.emitBlockchainSuccess('Nouvelle énigme définie sur la blockchain!');
+      }
+      
+      return success;
+    } catch (error) {
+      this.logger.error('Erreur lors de la définition de la prochaine énigme:', error);
+      return false;
+    }
+  }
 }

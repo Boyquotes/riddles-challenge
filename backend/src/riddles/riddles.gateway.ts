@@ -65,12 +65,33 @@ export class RiddlesGateway implements OnGatewayConnection, OnGatewayDisconnect,
       this.globalAttemptedAnswers.set(this.activeRiddleId, new Set());
     }
     
-    // Send the current riddle to the new player
-    const currentRiddle = await this.riddlesService.getRiddle(this.activeRiddleId);
-    client.emit('currentRiddle', {
-      id: currentRiddle.id,
-      question: currentRiddle.question,
-    });
+    // Handle the case when all riddles are solved (game_over)
+    if (this.activeRiddleId === 'game_over') {
+      const gameOverRiddle = await this.riddlesService.getRandomRiddle();
+      client.emit('currentRiddle', {
+        id: gameOverRiddle.id,
+        question: gameOverRiddle.question,
+      });
+    } else {
+      // Send the current riddle to the new player
+      const currentRiddle = await this.riddlesService.getRiddle(this.activeRiddleId);
+      if (currentRiddle) {
+        client.emit('currentRiddle', {
+          id: currentRiddle.id,
+          question: currentRiddle.question,
+        });
+      } else {
+        // Handle case where riddle couldn't be found
+        console.error(`Could not find riddle with ID: ${this.activeRiddleId}`);
+        // Get a new random riddle as fallback
+        const fallbackRiddle = await this.riddlesService.getRandomRiddle();
+        this.activeRiddleId = fallbackRiddle.id;
+        client.emit('currentRiddle', {
+          id: fallbackRiddle.id,
+          question: fallbackRiddle.question,
+        });
+      }
+    }
     
     // Broadcast the number of active players
     this.server.emit('playerCount', this.activePlayers.size);

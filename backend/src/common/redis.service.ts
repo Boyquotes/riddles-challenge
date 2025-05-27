@@ -18,7 +18,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.redisClient.ping();
       console.log('Redis connection established');
-      await this.seedRiddles();
+      // await this.seedRiddles();
     } catch (error) {
       console.error('Redis connection failed:', error);
     }
