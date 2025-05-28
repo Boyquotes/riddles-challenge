@@ -2,6 +2,9 @@
 
 A real-time multiplayer riddle game built with WebSockets, GraphQL, NestJS, and Next.js.
 
+## Demo on Sepolia testnet
+http://37.187.141.70:3000/
+
 ## Features
 
 - Real-time riddle updates via WebSockets
