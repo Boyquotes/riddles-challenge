@@ -4,6 +4,7 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { onError } from '@apollo/client/link/error';
 import { RetryLink } from '@apollo/client/link/retry';
 import { createClient } from 'graphql-ws';
+import { API_CONFIG } from '@/config/api';
 
 // This approach ensures the Apollo client is initialized only on the client side
 // and is properly shared between requests
@@ -12,7 +13,7 @@ let apolloClient: ApolloClient<NormalizedCacheObject> | null = null;
 function createApolloClient() {
   // Create an HTTP link for queries and mutations
   const httpLink = new HttpLink({
-    uri: 'http://localhost:3001/graphql',
+    uri: API_CONFIG.httpUrl,
   });
 
   // Create a retry link with custom logic
@@ -59,7 +60,7 @@ function createApolloClient() {
   const wsLink = typeof window !== 'undefined' 
     ? new GraphQLWsLink(
         createClient({
-          url: 'ws://localhost:3001/graphql',
+          url: API_CONFIG.wsUrl,
           retryAttempts: 5,
           connectionParams: {}
         })

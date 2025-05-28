@@ -1,13 +1,14 @@
 import { io, Socket } from 'socket.io-client';
+import { API_CONFIG } from '@/config/api';
 
 let socket: Socket | null = null;
 
 export function getSocketClient() {
   if (!socket && typeof window !== 'undefined') {
-    console.log('Initializing Socket.IO client connection to http://localhost:3001');
+    console.log(`Initializing Socket.IO client connection to ${API_CONFIG.socketUrl}`);
     
     // Créer une connexion Socket.IO avec des options explicites
-    socket = io('http://localhost:3001', {
+    socket = io(API_CONFIG.socketUrl, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 5,
