@@ -638,7 +638,7 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
       console.log('Envoi de la transaction setRiddle au contrat avec frais de gaz accélérés (50 Gwei)...');
       
       // Définir les options de transaction avec des frais de gaz élevés (50 Gwei)
-      const gasPrice = ethers.parseUnits('50', 'gwei');
+      const gasPrice = ethers.parseUnits('70', 'gwei');
       console.log(`Prix du gaz configuré à: ${ethers.formatUnits(gasPrice, 'gwei')} Gwei`);
       
       // Envoyer la transaction avec les options personnalisées

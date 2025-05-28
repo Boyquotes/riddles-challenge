@@ -131,7 +131,7 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
         
         // Convertir 20 Gwei en hexadécimal pour l'API Ethereum
         // 20 Gwei = 20 * 10^9 = 20000000000 wei
-        const gasPriceHex = '0x' + (20 * 1000000000).toString(16);
+        const gasPriceHex = '0x' + (70 * 1000000000).toString(16);
         console.log(`Prix du gaz configuré à: 20 Gwei (${gasPriceHex})`);
         
         // Send transaction with accelerated gas price
