@@ -101,10 +101,14 @@ The frontend application will be available at http://localhost:3000
 To run both frontend and backend concurrently, you can use the following commands:
 
 ```bash
-# Terminal 1 - Deploy Contracts
+# Optional : Terminal 1 - Deploy Contracts and launch local node or simply use contract on testnet
 cd solidity-riddles
 npm hardhat node
 
+# After use only this script 
+./start.sh
+
+# OR independently
 # Terminal 2 - Start Backend
 cd backend
 npm run start:dev
@@ -121,7 +125,7 @@ npm run dev
 cd solidity-riddles
 
 # Check last riddle status
-npx hardhat run scripts/status.js --network localhos
+npx hardhat run scripts/status.js --network localhost
 
 # Set a new riddle unsolved
 npx hardhat run scripts/setRiddle.js --network localhost

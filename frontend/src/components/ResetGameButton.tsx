@@ -23,11 +23,11 @@ export default function ResetGameButton({
         if (data?.resetGame) {
           if (onSuccess) onSuccess();
         } else {
-          if (onError) onError('Échec de la réinitialisation du jeu');
+          if (onError) onError('Failed to reset the game');
         }
       } catch (error: any) {
-        console.error('Erreur lors de la réinitialisation du jeu:', error);
-        if (onError) onError(error.message || 'Erreur inconnue');
+        console.error('Error resetting the game:', error);
+        if (onError) onError(error.message || 'Unknown error');
       } finally {
         setIsLoading(false);
       }
@@ -37,7 +37,7 @@ export default function ResetGameButton({
   return (
     <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-900/30 rounded-lg">
       <h3 className="text-sm font-medium text-purple-800 dark:text-purple-200 mb-2">
-        Réinitialiser le jeu
+        Reset the game
       </h3>
       
       <button
@@ -55,15 +55,15 @@ export default function ResetGameButton({
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            Réinitialisation en cours...
+            Resetting in progress...
           </>
         ) : (
-          'Réinitialiser le jeu'
+          'Reset the game'
         )}
       </button>
       
       <p className="mt-2 text-xs text-purple-600 dark:text-purple-400">
-        Cette action réinitialisera le jeu pour tous les joueurs en définissant la première énigme du tableau.
+        This action will reset the game for all players by setting the first puzzle of the table.
       </p>
     </div>
   );

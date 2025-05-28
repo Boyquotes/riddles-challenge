@@ -158,7 +158,7 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
           setTimeout(() => {
             // Appeler onSuccess avec un paramètre vide pour indiquer de masquer le message
             onSuccess(true);
-          }, 10000);
+          }, 2000);
         }
       }
     } catch (error: any) {
@@ -289,7 +289,7 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
                   <path d="M32.9582 1L19.8241 10.7183L22.2665 5.09944L32.9582 1Z" fill="#E17726" stroke="#E17726" strokeWidth="0.25" strokeLinecap="round" strokeLinejoin="round"/>
                   <path d="M2.04187 1L15.0217 10.809L12.7334 5.09944L2.04187 1Z" fill="#E27625" stroke="#E27625" strokeWidth="0.25" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                Soumettre à la blockchain
+                Submit to the blockchain
               </>
             )}
           </button>
@@ -301,13 +301,13 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
             </svg>
-            Déconnecter
+            Disconnect
           </button>
         </div>
       )}
       {account && (
         <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center truncate">
-          Connecté: {account.substring(0, 6)}...{account.substring(account.length - 4)}
+          Connected: {account.substring(0, 6)}...{account.substring(account.length - 4)}
         </div>
       )}
     </div>
