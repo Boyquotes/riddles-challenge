@@ -635,9 +635,19 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
       console.log(`Hash de réponse formaté: ${formattedAnswerHash}`);
       
       // Définir l'énigme dans le contrat
-      console.log('Envoi de la transaction setRiddle au contrat...');
-      const tx = await contractWithSigner.setRiddle(riddle, formattedAnswerHash);
+      console.log('Envoi de la transaction setRiddle au contrat avec frais de gaz accélérés (50 Gwei)...');
+      
+      // Définir les options de transaction avec des frais de gaz élevés (50 Gwei)
+      const gasPrice = ethers.parseUnits('50', 'gwei');
+      console.log(`Prix du gaz configuré à: ${ethers.formatUnits(gasPrice, 'gwei')} Gwei`);
+      
+      // Envoyer la transaction avec les options personnalisées
+      const tx = await contractWithSigner.setRiddle(riddle, formattedAnswerHash, {
+        gasPrice: gasPrice,
+      });
+      
       console.log(`Transaction envoyée avec succès! Hash de transaction: ${tx.hash}`);
+      console.log(`Prix du gaz utilisé: ${ethers.formatUnits(gasPrice, 'gwei')} Gwei`);
       
       // Attendre que la transaction soit minée
       console.log('Attente de la confirmation de la transaction...');
