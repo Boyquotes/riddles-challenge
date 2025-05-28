@@ -9,7 +9,43 @@ A real-time multiplayer riddle game built with WebSockets, GraphQL, NestJS, and 
 - Player synchronization to prevent duplicate answers
 - Modern UI with Tailwind CSS
 
+<img width="432" alt="screenshot" src="https://github.com/user-attachments/assets/6b237d1d-a4be-4206-adb4-24da71707252" />
+
+## How to Play
+
+1. Open the application in your browser
+2. You'll see a riddle displayed on the screen
+3. Type your answer in the input field and submit
+4. If your answer is correct, a new riddle will be shown to all players
+5. The game continues as players solve riddles
+
+## Game Rules
+
+- Each player can submit multiple answers for a riddle
+- When a player submits the correct answer, all players receive a new riddle
+- Players are synchronized in real-time to avoid duplicate answers
+
+## Technologies Used
+
+- **Backend**:
+  - NestJS - Node.js framework
+  - GraphQL - API query language
+  - WebSockets - Real-time communication
+
+- **Frontend**:
+  - Next.js - React framework
+  - Apollo Client - GraphQL client
+  - Socket.io Client - WebSocket communication
+  - Tailwind CSS - Styling
+
+
 ## Prerequisites
+
+
+
+https://github.com/user-attachments/assets/56244e35-ac1b-484e-ba91-ef93c8bf1232
+
+
 
 - Node.js (v20+)
 
@@ -66,35 +102,8 @@ npm install
 # Start the frontend development server
 npm run dev
 ```
-
 The frontend application will be available at http://localhost:3000
 
-## How to Play
-
-1. Open the application in your browser
-2. You'll see a riddle displayed on the screen
-3. Type your answer in the input field and submit
-4. If your answer is correct, a new riddle will be shown to all players
-5. The game continues as players solve riddles
-
-## Game Rules
-
-- Each player can submit multiple answers for a riddle
-- When a player submits the correct answer, all players receive a new riddle
-- Players are synchronized in real-time to avoid duplicate answers
-
-## Technologies Used
-
-- **Backend**:
-  - NestJS - Node.js framework
-  - GraphQL - API query language
-  - WebSockets - Real-time communication
-
-- **Frontend**:
-  - Next.js - React framework
-  - Apollo Client - GraphQL client
-  - Socket.io Client - WebSocket communication
-  - Tailwind CSS - Styling
 
 ## Development
 
