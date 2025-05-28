@@ -41,15 +41,16 @@ http://37.187.141.70:3000/
   - Socket.io Client - WebSocket communication
   - Tailwind CSS - Styling
 
-
-## Prerequisites
-
-
+## TODO
+- Use FHevm to hide the answer
+- playwright or cypress tests
+- better multiplayer experience, notify other players when a player make an answer
+- ...
 
 https://github.com/user-attachments/assets/56244e35-ac1b-484e-ba91-ef93c8bf1232
 
 
-
+## Prerequisites
 - Node.js (v20+)
 
 ## Project Structure
