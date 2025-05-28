@@ -1,7 +1,8 @@
 node_modules
 .DS_STORE
 target
-*.env*
+*.env
+*.env.local
 backend/dist/*
 backend/logs/*
 
