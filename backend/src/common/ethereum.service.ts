@@ -154,9 +154,9 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
             this.logger.log('Réponse correcte détectée, envoi de notification de succès aux clients');
             this.socketService.emitBlockchainSuccess('Riddle solved!');
             
-            // Planifier la définition de la prochaine énigme après 5 secondes
-            this.logger.log('Planification de la définition de la prochaine énigme dans 5 secondes...');
-            console.log('=== PLANIFICATION DE LA PROCHAINE ÉNIGME DANS 5 SECONDES ===');
+            // Planifier la définition de la prochaine énigme après 2 secondes
+            this.logger.log('Planification de la définition de la prochaine énigme dans 2 secondes...');
+            console.log('=== PLANIFICATION DE LA PROCHAINE ÉNIGME DANS 2 SECONDES ===');
             
             setTimeout(() => {
               this.logger.log('Délai de 2 secondes écoulé, appel de setRandomRiddle...');
