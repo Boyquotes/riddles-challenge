@@ -36,7 +36,7 @@ cd riddles-challenge/
 cd backend
 
 # copy .env.example to .env
-cp env.example .env
+cp .env.example .env
 # Update .env file with your variables for modes you want to use (local or testnet)
 
 # Install dependencies
@@ -47,6 +47,12 @@ npm run start:dev
 ```
 
 The backend server will run on http://localhost:3001 with GraphQL playground available at http://localhost:3001/graphql
+
+Troubleshoot
+If 3001 port was already in use, you can find the process who use it and kill it with:
+```bash
+nid=`lsof -i :3001 | grep LISTEN | awk '{print $2}'` && kill -9 $nid
+```
 
 ### 2. Frontend Setup
 
