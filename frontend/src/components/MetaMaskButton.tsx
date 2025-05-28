@@ -158,7 +158,7 @@ export default function MetaMaskButton({ riddleId, answer, onSuccess, onError }:
           setTimeout(() => {
             // Appeler onSuccess avec un paramètre vide pour indiquer de masquer le message
             onSuccess(true);
-          }, 2000);
+          }, 11000);
         }
       }
     } catch (error: any) {
