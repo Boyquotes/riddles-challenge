@@ -33,11 +33,11 @@ export class RiddlesService implements OnModuleInit {
   
   // Riddles with precomputed keccak256 hashes for easy setting on the blockchain
   private riddlesWithHash: Array<{ text: string; answer: string; hash: string }> = [
-    // { 
-    //   text: "What has keys but no locks, space but no room, and you can enter but not go in?", 
-    //   answer: "keyboard", 
-    //   hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("keyboard")).substring(2) 
-    // },
+    { 
+      text: "I add flavor to your dishes and keep your hash safe. What am I?", 
+      answer: "salt", 
+      hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("salt")).substring(2) 
+    },
     { 
       text: "I speak without a mouth and hear without ears. I have no body, but I come alive with wind. What am I?", 
       answer: "echo", 
@@ -48,11 +48,11 @@ export class RiddlesService implements OnModuleInit {
     //   answer: "footsteps", 
     //   hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("footsteps")).substring(2) 
     // },
-    { 
-      text: "What has a head, a tail, is brown, and has no legs?", 
-      answer: "penny", 
-      hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("penny")).substring(2) 
-    },
+    // { 
+    //   text: "What has a head, a tail, is brown, and has no legs?", 
+    //   answer: "penny", 
+    //   hash: "0x" + ethers.keccak256(ethers.toUtf8Bytes("penny")).substring(2) 
+    // },
     { 
       text: "What gets wet while drying?", 
       answer: "towel", 
@@ -677,35 +677,6 @@ export class RiddlesService implements OnModuleInit {
     }, 4000); // 4 secondes de délai
     
     console.log(`Timer ID pour la planification: ${timerId}`);
-  }
-  
-  /**
-   * Définit la prochaine énigme dans la blockchain lorsqu'une énigme est résolue
-   * Sélectionne une énigme aléatoire parmi celles disponibles
-   */
-  async setNextRiddleInBlockchain(): Promise<boolean> {
-    try {
-      this.logger.log('Tentative de définition de la prochaine énigme dans la blockchain...');
-      
-      // Vérifier si nous avons une clé privée pour signer la transaction
-      const privateKey = process.env.PRIVATE_KEY;
-      if (!privateKey) {
-        this.logger.warn('Aucune clé privée disponible pour définir la prochaine énigme');
-        return false;
-      }
-      
-      // Définir la prochaine énigme dans la blockchain
-      const success = await this.ethereumService.setNextRiddle(this.availableRiddles, privateKey);
-      
-      if (success) {
-        this.logger.log('Prochaine énigme définie avec succès dans la blockchain');
-      }
-      
-      return success;
-    } catch (error) {
-      this.logger.error('Erreur lors de la définition de la prochaine énigme dans la blockchain:', error);
-      return false;
-    }
   }
   
   /**
