@@ -1,41 +1,29 @@
 # Riddle Game - Real-time Multiplayer
 
-A real-time multiplayer riddle game built with WebSockets, GraphQL, Redis, NestJS, and Next.js.
+A real-time multiplayer riddle game built with WebSockets, GraphQL, NestJS, and Next.js.
 
 ## Features
 
 - Real-time riddle updates via WebSockets
 - GraphQL API for data fetching
-- Redis for storing riddles and game state
 - Player synchronization to prevent duplicate answers
 - Modern UI with Tailwind CSS
 
 ## Prerequisites
 
-- Node.js (v16+)
-- Redis server running on localhost:6379
+- Node.js (v18+)
 
 ## Project Structure
 
-- `backend/` - NestJS application with GraphQL, WebSockets, and Redis
+- `backend/` - NestJS application with GraphQL, WebSockets
 - `frontend/` - Next.js application with Apollo Client and Socket.io
 
 ## Setup and Installation
 
-### 1. Start Redis Server
-
-Make sure you have Redis installed and running on your machine:
-
-```bash
-# Start Redis server
-redis-server
-```
-
-### 2. Backend Setup
+### 1. Backend Setup
 
 ```bash
 # Navigate to backend directory
-cd backend
 
 # Install dependencies
 npm install
@@ -46,7 +34,7 @@ npm run start:dev
 
 The backend server will run on http://localhost:3001 with GraphQL playground available at http://localhost:3001/graphql
 
-### 3. Frontend Setup
+### 2. Frontend Setup
 
 ```bash
 # Navigate to frontend directory
@@ -81,7 +69,6 @@ The frontend application will be available at http://localhost:3000
   - NestJS - Node.js framework
   - GraphQL - API query language
   - WebSockets - Real-time communication
-  - Redis - Data storage and game state management
 
 - **Frontend**:
   - Next.js - React framework
@@ -94,8 +81,9 @@ The frontend application will be available at http://localhost:3000
 To run both frontend and backend concurrently, you can use the following commands:
 
 ```bash
-# Terminal 1 - Start Redis
-redis-server
+# Terminal 1 - Deploy Contracts
+cd solidity-riddles
+npm hardhat node
 
 # Terminal 2 - Start Backend
 cd backend
@@ -105,3 +93,20 @@ npm run start:dev
 cd frontend
 npm run dev
 ```
+
+## Interact with smart contract
+
+```bash
+# Navigate to solidity-riddles directory
+cd solidity-riddles
+
+# Check last riddle status
+npx hardhat run scripts/status.js --network localhos
+
+# Set a new riddle unsolved
+npx hardhat run scripts/setRiddle.js --network localhost
+
+# Submit an answer, modify the answer variable in the script
+npx hardhat run scripts/submit-answer.js --network localhost
+```
+

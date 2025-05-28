@@ -1,10 +1,5 @@
 #!/bin/bash
 
-# Start Redis (uncomment if you want to start Redis from this script)
-# redis-server &
-# REDIS_PID=$!
-# echo "Started Redis server with PID: $REDIS_PID"
-
 # Start Backend
 echo "Starting backend server..."
 cd backend

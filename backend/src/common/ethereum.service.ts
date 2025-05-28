@@ -33,10 +33,6 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
     private readonly eventEmitter: EventEmitter2,
     private readonly socketService: SocketService
   ) {
-    // Test d'émission d'erreur blockchain après 10 secondes
-    // setTimeout(() => {
-    //   this.testEmitBlockchainError();
-    // }, 10000);
     try {
       // Configurer le provider pour le réseau approprié
       const networkMode = process.env.NETWORK_MODE || 'testnet';
@@ -96,16 +92,6 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy(): Promise<void> {
     this.logger.log('Nettoyage des écouteurs d\'événements...');
     await this.cleanupEventListeners();
-  }
-  
-  /**
-   * Méthode de test pour émettre une erreur blockchain via Socket.IO
-   * Cette méthode est utilisée uniquement pour le débogage
-   */
-  testEmitBlockchainError(): void {
-    console.log('Test d\'envoi d\'une notification d\'erreur blockchain via Socket.IO');
-    const testErrorMsg = '[TEST] Tentative de préparation d\'une transaction pour une énigme inactive';
-    this.socketService.emitBlockchainError(testErrorMsg);
   }
   
   /**
@@ -231,28 +217,6 @@ export class EthereumService implements OnModuleInit, OnModuleDestroy {
    */
   getContract(): OnchainRiddleContract {
     return this.contract;
-  }
-
-  /**
-   * Récupère les données brutes de l'énigme depuis le contrat
-   * @deprecated Utiliser getRiddleWithRetry à la place pour une meilleure gestion des erreurs
-   */
-  async getRiddleRaw(): Promise<{ question: string; isActive: boolean; winner: string }> {
-    try {
-      // Dans ethers.js v6, nous devons appeler les méthodes du contrat comme ceci
-      const riddleText = await this.contract.riddle() as string;
-      const isActive = await this.contract.isActive() as boolean;
-      const winner = await this.contract.winner() as string;
-      
-      return {
-        question: riddleText,
-        isActive,
-        winner
-      };
-    } catch (error) {
-      this.logger.error('Erreur lors de la récupération de l\'énigme depuis la blockchain:', error);
-      throw new Error('Failed to fetch riddle from blockchain');
-    }
   }
   
   /**
