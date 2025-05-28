@@ -11,12 +11,21 @@ A real-time multiplayer riddle game built with WebSockets, GraphQL, NestJS, and 
 
 ## Prerequisites
 
-- Node.js (v18+)
+- Node.js (v20+)
 
 ## Project Structure
 
 - `backend/` - NestJS application with GraphQL, WebSockets
 - `frontend/` - Next.js application with Apollo Client and Socket.io
+
+
+## Clone the repository
+
+```bash
+# Clone the dApp repository and contract repository
+git clone --recurse-submodules https://github.com/Boyquotes/riddles-challenge.git
+cd riddles-challenge/
+```
 
 ## Setup and Installation
 
@@ -24,6 +33,11 @@ A real-time multiplayer riddle game built with WebSockets, GraphQL, NestJS, and 
 
 ```bash
 # Navigate to backend directory
+cd backend
+
+# copy .env.example to .env
+cp env.example .env
+# Update .env file with your variables for modes you want to use (local or testnet)
 
 # Install dependencies
 npm install
