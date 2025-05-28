@@ -47,6 +47,9 @@ http://37.187.141.70:3000/
 - better multiplayer experience, notify other players when a player make an answer
 - ...
 
+## The riddle contract on Sepolia testnet
+https://sepolia.etherscan.io/address/0xa6fdc30159443f08a76dcac0469a7d6b0de878d2
+
 https://github.com/user-attachments/assets/56244e35-ac1b-484e-ba91-ef93c8bf1232
 
 
